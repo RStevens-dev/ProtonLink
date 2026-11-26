@@ -139,13 +139,24 @@ static void gesture_tick(lv_timer_t *timer)
     else if(a==G_DOTS) lv_bar_set_value(dot_progress,progress,LV_ANIM_OFF);
     else if(a==G_MONITOR) lv_bar_set_value(monitor_progress,progress,LV_ANIM_OFF);
     else if(a>=0) lv_bar_set_value(pack_progress[a],progress,LV_ANIM_OFF);
+    if(a>=0 && (!pl_is_unlocked() || pl_busy() || lv_obj_has_state(gesture_target,LV_STATE_DISABLED))) {
+        gesture_active=false;
+        gesture_target=NULL;
+        return;
+    }
     if(gesture_done || elapsed<threshold) return;
     gesture_done=true;
     if(a==G_FIELD) {
         if(!unlock_armed && ui_online) { unlock_armed=true; released=false; armed_at=lv_tick_get(); lv_label_set_text(lock_label,"RELEASE, THEN SWIPE LEFT"); }
     } else if(a<0) engage_lock();
-    else if(pl_is_unlocked() && !pl_busy()) {
-        notice=pl_request((pl_action_t)a)?"REQUEST QUEUED":"REQUEST BLOCKED"; notice_at=lv_tick_get();
+    else {
+        /* A successful request can disable its own button before LVGL sends
+         * RELEASED. Retire the gesture first; never depend on that event. */
+        gesture_active=false;
+        gesture_target=NULL;
+        bool accepted=pl_is_unlocked() && !pl_busy() && pl_request((pl_action_t)a);
+        notice=accepted?"REQUEST QUEUED":"REQUEST BLOCKED";
+        notice_at=lv_tick_get();
     }
 }
 static void refresh(lv_timer_t *timer)
