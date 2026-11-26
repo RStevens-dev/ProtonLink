@@ -11,6 +11,20 @@ static lv_obj_t *status_label, *telemetry_label, *lock_label;
 static lv_obj_t *levels[3], *level_labels[3], *buttons[12];
 static lv_obj_t *play_label, *pause_label;
 static bool ui_online;
+static bool dragging[3];
+static void slider_event(lv_event_t *event)
+{
+    int i=(int)(intptr_t)lv_event_get_user_data(event);
+    lv_event_code_t code=lv_event_get_code(event);
+    if (code==LV_EVENT_PRESSED) dragging[i]=true;
+    if (code==LV_EVENT_VALUE_CHANGED && dragging[i]) lv_label_set_text_fmt(level_labels[i],"%d%%",(int)lv_slider_get_value(levels[i]));
+    if (code==LV_EVENT_PRESS_LOST) dragging[i]=false;
+    if (code==LV_EVENT_RELEASED && dragging[i]) {
+        dragging[i]=false;
+        int target=(int)lv_slider_get_value(levels[i]);
+        if (ui_online && pl_is_unlocked() && !pl_busy()) pl_request_volume(i,target);
+    }
+}
 static void command(lv_event_t *event)
 {
     pl_action_t a = (pl_action_t)(intptr_t)lv_event_get_user_data(event);
@@ -34,9 +48,10 @@ static void refresh(lv_timer_t *timer)
     ui_online = protonlink_snapshot(&s);
     if (!ui_online) pl_set_unlocked(false);
     bool armed = ui_online && pl_is_unlocked();
+    bool busy=pl_busy();
     lv_label_set_text(lock_label, armed ? "TAP TO LOCK" : "HOLD TO UNLOCK");
 #ifdef CONFIG_PROTONLINK_ENABLE_CONTROL
-    lv_label_set_text(status_label, armed ? "CONTROL ENABLED" : "FIELD LOCK");
+    lv_label_set_text(status_label, armed ? (busy ? "SYNCING / REQUEST ACTIVE" : "CONTROL ENABLED") : "FIELD LOCK");
 #else
     lv_label_set_text(status_label, "READ ONLY | FIELD LOCK");
 #endif
@@ -44,22 +59,31 @@ static void refresh(lv_timer_t *timer)
         lv_label_set_text_fmt(telemetry_label, "%s | %s | %s\nTrack %d", s.pack_on ? "PACK ON" : "PACK OFF", s.firing ? "FIRING" : s.cyclotron, s.temperature, s.track);
         int v[] = {s.master,s.effects,s.music};
         for (int i=0;i<3;i++) {
-            lv_bar_set_value(levels[i],v[i],LV_ANIM_OFF);
-            lv_label_set_text_fmt(level_labels[i],"%d%%",v[i]);
+            if (!dragging[i] || !armed || busy) {
+                dragging[i]=false;
+                lv_slider_set_value(levels[i],v[i],LV_ANIM_OFF);
+                lv_label_set_text_fmt(level_labels[i],"%d%%",v[i]);
+            }
         }
         lv_label_set_text(play_label,s.playing ? "STOP" : "PLAY");
         lv_label_set_text(pause_label,s.paused ? "RESUME" : "PAUSE");
     } else {
         lv_label_set_text(telemetry_label,"GPStar offline / stale");
         for (int i=0;i<3;i++) {
-            lv_bar_set_value(levels[i],0,LV_ANIM_OFF);
+            dragging[i]=false;
+            lv_slider_set_value(levels[i],0,LV_ANIM_OFF);
             lv_label_set_text(level_labels[i],"--");
         }
         lv_label_set_text(play_label,"PLAY");
         lv_label_set_text(pause_label,"PAUSE");
     }
+    for (int i=0;i<3;i++) {
+        if (armed && !busy) lv_obj_remove_state(levels[i],LV_STATE_DISABLED);
+        else lv_obj_add_state(levels[i],LV_STATE_DISABLED);
+    }
     for (int i=0;i<12;i++) {
-        if (armed && pl_command_path((pl_action_t)i,&s)) lv_obj_remove_state(buttons[i],LV_STATE_DISABLED);
+        if (!buttons[i]) continue;
+        if (armed && !busy && pl_command_path((pl_action_t)i,&s)) lv_obj_remove_state(buttons[i],LV_STATE_DISABLED);
         else lv_obj_add_state(buttons[i],LV_STATE_DISABLED);
     }
 }
@@ -120,13 +144,13 @@ void app_main(void)
         lv_obj_t *name=lv_label_create(r);
         lv_obj_set_width(name,68);
         lv_label_set_text(name,names[i]);
-        action_button(r,(pl_action_t)(PL_MASTER_DOWN+i*2),"-",43,NULL);
-        levels[i]=lv_bar_create(r);
-        lv_obj_set_size(levels[i],145,16);
-        lv_bar_set_range(levels[i],0,100);
+        levels[i]=lv_slider_create(r);
+        lv_obj_set_size(levels[i],230,24);
+        lv_slider_set_range(levels[i],0,100);
+        lv_obj_add_event_cb(levels[i],slider_event,LV_EVENT_ALL,(void *)(intptr_t)i);
         level_labels[i]=lv_label_create(r);
         lv_obj_set_width(level_labels[i],40);
-        action_button(r,(pl_action_t)(PL_MASTER_UP+i*2),"+",43,NULL);
+        lv_obj_add_state(levels[i],LV_STATE_DISABLED);
     }
     lv_obj_t *music=line(screen,45);
     action_button(music,PL_PREVIOUS,"PREV",78,NULL);
