@@ -1,5 +1,5 @@
-import {initial,dispatch} from './model.js';
-import {exchange,route,connect,status} from './protocol.js';
+import {initial,dispatch,canChangeStream} from './model.js';
+import {exchange,route,connect,status,sync} from './protocol.js';
 import {simulate,diff,defaults,readPreview} from './lab.js';
 import {volumeTarget,nextVolumeIntent,queueVolume,dueVolumes} from './volume.js';
 const open=()=>dispatch(initial(),{type:'unlock'});
@@ -19,7 +19,7 @@ export const cases=[
  ['Physical changes persist through reconnect',()=>{let s=dispatch(open(),{type:'scenario',value:'offline'});s=dispatch(s,{type:'physical',control:'music',value:true});s=dispatch(s,{type:'scenario',value:'active'});check(s.online&&s.locked&&s.playing,'reconnect mismatch')}],
  ['Lock preserves playback',()=>{let s=dispatch(open(),{type:'play'});check(dispatch(s,{type:'lock'}).playing,'lock stopped music')}],
  ['Physical wand level is reflected in shared state',()=>{let s=dispatch(initial(),{type:'physical',control:'level',value:5});check(s.level===5&&s.locked,'level mismatch')}],
- ['Firing requires connected wand and powered pack',()=>{let s=initial();check(dispatch(s,{type:'physical',control:'firing',value:true})===s,'firing in standby');s=dispatch(s,{type:'physical',control:'power',value:true});check(dispatch(s,{type:'physical',control:'firing',value:true}).firing,'firing denied')}]
+ ['Firing requires connected wand and powered pack',()=>{let s=initial();check(dispatch(s,{type:'physical',control:'firing',value:true})===s,'firing in standby');s=dispatch(s,{type:'physical',control:'power',value:true});s=dispatch(s,{type:'physical',control:'wandPower',value:true});s=dispatch(s,{type:'physical',control:'barrel',value:true});check(dispatch(s,{type:'physical',control:'firing',value:true}).firing,'firing denied')}]
 ];
 cases.push(
  ['Protocol uses documented music toggle and acknowledgement',()=>{const x=exchange(open(),{type:"play"});check(x.events.some(e=>e.summary==="PUT /music/startstop"),"missing route");check(x.events.some(e=>e.body?.status==="success"),"missing ack");check(x.events.some(e=>e.kind==="WS"&&e.body.musicPlaying===true),"missing telemetry")}],
@@ -48,5 +48,15 @@ cases.push(
  ["Music reaches final target with minimum incremental writes",()=>{let s=open(),count=0;while(s.music!==90&&count<10){const a=nextVolumeIntent("music",s.music,90);s=exchange(s,a).state;count++}check(s.music===90&&count===4,"incorrect incremental count")}],
  ["Returning to same volume needs no write",()=>{check(nextVolumeIntent("master",75,75)===null&&nextVolumeIntent("effects",80,80)===null,"redundant write")}],
  ["Unaligned volume target cannot oscillate",()=>{check(nextVolumeIntent("music",72,70)===null,"overshoot")}]
+);
+cases.push(
+ ["Lid detection independent of ribbon and wand",()=>{const s=dispatch(initial(),{type:"physical",control:"lid",value:false});check(!s.lid&&s.cable&&s.wand&&!status(s).cyclotronLid,"lid conflated")}],
+ ["Ribbon removal independent of hose and lid",()=>{const s=dispatch(initial(),{type:"physical",control:"cable",value:false});check(!s.cable&&s.lid&&s.wand,"ribbon conflated")}],
+ ["Wand disconnect independent of ribbon and lid",()=>{const s=dispatch(initial(),{type:"physical",control:"wand",value:false});check(!s.wand&&s.cable&&s.lid,"wand conflated")}],
+ ["Stream requires active pack and eligible mode",()=>{const s=open();check(!canChangeStream(s)&&canChangeStream({...s,pack:true})&&!canChangeStream({...s,pack:true,mode:"Standard"})&&!canChangeStream({...s,pack:true,ramping:true})&&!canChangeStream({...s,pack:true,cable:false}),"stream guard mismatch")}],
+ ["Theme blocked with wand running",()=>{const s={...open(),wandPower:true};check(exchange(s,{type:"theme",value:"1989"}).state===s,"theme changed")}],
+ ["Unsynced gateway HTTP returns empty status",()=>{check(JSON.stringify(sync(initial(),false)[1].body)==="{}","incorrect unsynced body")}],
+ ["Volume serial command and confirmation are distinct from ACK",()=>{const x=exchange(open(),{type:"volume",channel:"master",value:90});const i=x.events.findIndex(e=>e.summary==="A_VOLUME_SET"),j=x.events.findIndex(e=>e.body?.status==="success"),k=x.events.findIndex(e=>e.summary==="A_VOLUME_SYNC");check(i>=0&&i<j&&j<k&&x.events[k].body[0]===90,"serial ordering")}],
+ ["No fictional direct wand firing command",()=>{check(route(open(),{type:"firing",value:true})===null,"unexpected API")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

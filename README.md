@@ -25,6 +25,10 @@ The function-test panel runs the same isolated assertions as Node CI. Tests neve
 3. In Actions, run **Test and deploy simulator** if the initial push did not deploy.
 4. Subsequent pushes to main run tests and deploy only when tests pass. Pull requests run tests without publishing. The Pages artifact contains only the static simulator, not credentials or real transport code.
 
+## Gen 1 equipment fidelity
+
+See [equipment audit](docs/EQUIPMENT.md) for the wiring, physical LED defaults, independent lid/ribbon/wand state, gateway synchronization, stream guards and symbolic serial messages. The simulator is an approximation of the documented Gen 1 system, not a hardware emulator.
+
 ## Animated watch instrument UI
 
 The native-resolution watch now includes state-driven reactor rotation and power-cell indication, four distinct lock-face designs, animated alarm borders, a music transport with a decorative reel and playback visualization, vertical segmented mixer faders, graphical stream previews, schematic diagnostics and animated screen transitions. All effects are local visualizations; no invented sensor readings or track progress are presented. Reduced motion respects the browser setting and the watch preference. Existing Field Lock and API command policies remain in place.
