@@ -247,6 +247,7 @@ function renderLab(){updateHealth();paintStats();if(liveMode){$("gatewayState").
 function resync(){if(liveMode){pollReal();return}if(!s.online||!cfg.gatewayPower){record(sync({...s,online:false}));return}if(!cfg.gateway){record(sync(s,false));return}cached={...s};record(sync(s));if(trackStore.auto)syncTrackNames(false);render()}
 function cancelConfirmation(){clearTimeout(confirmTimer);confirmTimer=null;confirmation=null;const l=$("confirmLayer");if(l)l.hidden=true}
 function askConfirm(a){confirmation=a;const l=$("confirmLayer");l.hidden=false;l.innerHTML='<div class="confirm-card"><div class="hazard"></div><h3>CONFIRM '+a.type.toUpperCase()+'</h3><p>Hold for one second to execute this command.</p><div class="confirm-progress"><i></i></div><button id="holdConfirm" class="accent">HOLD TO CONFIRM</button><button id="cancelConfirm">CANCEL</button></div>';const holdButton=$("holdConfirm");holdButton.addEventListener("pointerdown",e=>{e.stopPropagation();holdButton.setPointerCapture(e.pointerId);const bar=l.querySelector("i");bar.style.transition="width 1s linear";bar.style.width="100%";confirmTimer=setTimeout(()=>{const intent=confirmation;cancelConfirmation();if(intent&&!s.locked)sendIntent({...intent,confirmed:true})},1000)});for(const name of ["pointerup","pointercancel","lostpointercapture"])holdButton.addEventListener(name,()=>{clearTimeout(confirmTimer);confirmTimer=null;const bar=l.querySelector("i");if(bar){bar.style.transition="none";bar.style.width="0"}});$("cancelConfirm").onclick=()=>{cancelConfirmation();local("Confirmation cancelled")}}
+const missingLiveRoutes=new Set();
 async function sendRealIntent(intent){
  if(!liveControl||pending||s.locked||!s.online||!fresh(lastTelemetry))return false;
  const generation=liveGeneration;pending=true;activity();
@@ -259,18 +260,30 @@ async function sendRealIntent(intent){
    const guard=commandGuard(s,cfg,intent,lastTelemetry);
    if(guard)throw Error(guard);
    path=commandPath(s,intent);
+   if(missingLiveRoutes.has(path))throw Error("Route unavailable on this Attenuator: "+path);
   } catch(e) {
    commandState="BLOCKED · "+e.message;local(commandState);return false;
   }
   if(!path)return false;
   record([{kind:"HTTP",direction:"Watch → Attenuator",summary:"PUT "+path}]);
-  const ack=await sendCommand(path);
+  let ack;
+  try {ack=await sendCommand(path)} catch(e) {
+   if(e.status!==404)throw e;
+   if(liveMode&&generation===liveGeneration){missingLiveRoutes.add(path);commandState="UNSUPPORTED · HTTP 404";local(commandState,{path});}
+   return false;
+  }
   if(!liveMode||generation!==liveGeneration)return false;
   record([{kind:"HTTP",direction:"Attenuator → Watch",summary:"ACK · "+path,body:ack}]);
   const field=commandedField(intent)||intent.type;liveCommanded[field]={path,at:Date.now()};commandState="ACKNOWLEDGED · awaiting telemetry";
-  await new Promise(r=>setTimeout(r,350));
-  if(!liveMode||generation!==liveGeneration)return false;
-  await pollReal();commandState=outcome(before,s,intent);local(commandState,{path});return commandState==="CONFIRMED"||commandState==="ACKNOWLEDGED / UNOBSERVABLE";
+  for(const delay of intent.type==="track"?[350,650,1000,1000]:[350]){
+   await new Promise(r=>setTimeout(r,delay));
+   if(!liveMode||generation!==liveGeneration)return false;
+   await pollReal();
+   if(!liveMode||generation!==liveGeneration)return false;
+   commandState=outcome(before,s,intent);
+   if(commandState!=="ACKNOWLEDGED / NOT CONFIRMED"||s.locked)break;
+  }
+  local(commandState,intent.type==="track"?{path,requested:intent.value,reported:s.online?s.track:null}: {path});return commandState==="CONFIRMED"||commandState==="ACKNOWLEDGED / UNOBSERVABLE";
  }catch(e){if(liveMode&&generation===liveGeneration){commandState="REJECTED / UNCERTAIN · "+e.message;local(commandState);await pollReal()}return false}
  finally{if(generation===liveGeneration){pending=false;render()}}
 }
@@ -433,7 +446,7 @@ function applySample(raw, source) {
 async function pollReal(){if(!liveMode||liveBusy)return false;const generation=liveGeneration;liveBusy=true;record([{kind:"HTTP",direction:"Bridge → Attenuator",summary:"GET /status",body:null}]);try{const raw=await liveTransport.get("status");if(!liveMode||generation!==liveGeneration)return;return applySample(raw,"HTTP")}catch(e){if(liveMode&&generation===liveGeneration){if(s.online){preferenceEpoch++;liveDiscoveryBusy=false;livePrefs={};cancelConfirmation()}s={...s,online:false,locked:true};liveCommanded={};cancelVolumes("Link lost");cached={...cached,online:false};record([{kind:"FAULT",direction:"Bridge",summary:"Live status unavailable",body:{error:e.message}}]);realMessage("No valid live telemetry: "+e.message);render()}}finally{if(generation===liveGeneration)liveBusy=false}}
 async function readRealConfig(){if(!liveMode||!s.online||liveDiscoveryBusy)return;liveDiscoveryBusy=true;const generation=liveGeneration, revision=preferenceEpoch;try{const config=await liveTransport.get("config/device");if(!liveMode||(generation!==liveGeneration||revision!==preferenceEpoch))return;liveConfig=config;record([{kind:"HTTP",direction:"Attenuator → Bridge",summary:"200 OK · /config/device",body:config}]);if(validRange(cached.first,cached.last)){const {names,warnings}=deviceTracks(config,cached.first,cached.last);trackStore.synced=names;refreshTrackManager();liveConfig.trackWarnings=warnings}let api=null;try{api=await liveTransport.get("openapi.json")}catch{}if(!liveMode||(generation!==liveGeneration||revision!==preferenceEpoch))return;const prefs=await discover(liveTransport,()=>liveMode&&(generation===liveGeneration&&revision===preferenceEpoch));if(!liveMode||(generation!==liveGeneration||revision!==preferenceEpoch))return;livePrefs=prefs;$("liveCapabilities").textContent=JSON.stringify({...capabilitySummary(config,api),trackWarnings:config.trackWarnings,preferences:prefs,configured:configured(prefs)},null,2);realMessage("Discovery complete; unavailable preferences remain unknown");render()}catch(e){if(liveMode&&(generation===liveGeneration&&revision===preferenceEpoch))realMessage("Configuration unavailable: "+e.message)}finally{if((generation===liveGeneration&&revision===preferenceEpoch))liveDiscoveryBusy=false}}
 $("connectReal").onclick=async()=>{let socketUrl;if(liveMode||replaying)return;if(!isLocal(location.hostname)){realMessage("Use the locally hosted bridge, not GitHub Pages");return}try{const response=await fetch("/bridge/info",{cache:"no-store",signal:AbortSignal.timeout(3000)});const info=await response.json();if(!response.ok||!["read-only","control"].includes(info.mode))throw Error("Bridge not found");socketUrl=info.websocket;packSettingsUrl=null;
- if(socketUrl){const ws=new URL(socketUrl);if(ws.protocol==="ws:"&&/^\d+\.\d+\.\d+\.\d+$/.test(ws.hostname))packSettingsUrl="http://"+ws.host+"/settings/pack";}liveControl=info.mode==="control"}catch(e){realMessage("Start the local bridge first: "+e.message);return}if(liveMode)return;epoch++;pending=false;cancelVolumes("Live mode");cancelConfirmation();cancelQuickHold();liveSaved={s:{...s},cached:{...cached},cfg:{...cfg},tracks:{...trackStore,synced:{...trackStore.synced}}};liveMode=true;liveGeneration++;liveBusy=false;cfg={...defaults(),gateway:true,gatewayPower:true};s={...initial(),online:false,locked:true};cached={...s};trackStore={local:{},synced:{},auto:false};lastTelemetry=0;lastObserved=null;stats=emptyStats();traffic=[];page="field";setLiveButtons(true);lock();const generation=liveGeneration;
+ if(socketUrl){const ws=new URL(socketUrl);if(ws.protocol==="ws:"&&/^\d+\.\d+\.\d+\.\d+$/.test(ws.hostname))packSettingsUrl="http://"+ws.host+"/settings/pack";}liveControl=info.mode==="control"}catch(e){realMessage("Start the local bridge first: "+e.message);return}if(liveMode)return;epoch++;pending=false;cancelVolumes("Live mode");cancelConfirmation();cancelQuickHold();liveSaved={s:{...s},cached:{...cached},cfg:{...cfg},tracks:{...trackStore,synced:{...trackStore.synced}}};missingLiveRoutes.clear();liveMode=true;liveGeneration++;liveBusy=false;cfg={...defaults(),gateway:true,gatewayPower:true};s={...initial(),online:false,locked:true};cached={...s};trackStore={local:{},synced:{},auto:false};lastTelemetry=0;lastObserved=null;stats=emptyStats();traffic=[];page="field";setLiveButtons(true);lock();const generation=liveGeneration;
  if(socketUrl) stopTelemetry=subscribeTelemetry(socketUrl,raw=>liveMode&&generation===liveGeneration&&!liveBusy&&!pending&&applySample(raw,"WS"));
  liveTimer=setInterval(()=>{if(!pending)void pollReal()},2000);
  await pollReal();

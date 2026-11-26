@@ -105,3 +105,10 @@ test('live master slider replans each step from the reported value', () => {
   }
   assert.equal(nextVolumeIntent('master',45,45,true),null);
 });
+
+test('legacy year changes require idle equipment',()=>{
+ const idle={...initial(),mode:'Super Hero',ramping:null,pack:false,wandPower:false};
+ const year={type:'theme',value:'1989'};
+ assert.equal(commandPath(idle,year),'/pack/theme/1989');
+ for(const change of [{pack:true},{wandPower:true},{ramping:true},{firing:true}])assert.throws(()=>commandPath({...idle,...change},year));
+});
