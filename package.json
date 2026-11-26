@@ -1,0 +1,8 @@
+{
+  "name": "protonlink",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test simulator/model.test.js"
+  }
+}

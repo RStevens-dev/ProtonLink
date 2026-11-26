@@ -1,0 +1,7 @@
+.env
+.env.*
+*.local.json
+node_modules/
+.pio/
+build/
+__pycache__/

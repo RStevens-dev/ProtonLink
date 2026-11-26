@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {initial,dispatch} from './model.js';
+const unlocked=()=>dispatch(initial(),{type:"unlock"});
+test("locked rejects mutations",()=>{const s=initial();assert.equal(dispatch(s,{type:"play"}),s)});
+test("offline locks",()=>{const s=dispatch(unlocked(),{type:"scenario",value:"offline"});assert.equal(s.locked,true);assert.equal(dispatch(s,{type:"unlock"}),s)});
+test("play desired state is idempotent",()=>{let s=dispatch(unlocked(),{type:"play"});assert.deepEqual(dispatch(s,{type:"play"}),s)});
+test("raw track range wraps",()=>{let s={...unlocked(),track:520};assert.equal(dispatch(s,{type:"next"}).track,500);assert.equal(dispatch(s,{type:"track",value:4}),s)});
+test("power requires confirmation",()=>{const s=unlocked();assert.equal(dispatch(s,{type:"power",value:true}),s);assert.equal(dispatch(s,{type:"power",value:true,confirmed:true}).pack,true)});
+test("vent requires normal powered state",()=>{const s=unlocked();assert.equal(dispatch(s,{type:"vent",confirmed:true}),s)});
+test("locking preserves music",()=>{let s=dispatch(unlocked(),{type:"play"});assert.equal(dispatch(s,{type:"lock"}).playing,true)});
