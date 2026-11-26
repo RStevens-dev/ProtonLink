@@ -26,7 +26,7 @@ static atomic_bool unlocked;
 static QueueHandle_t requests;
 static atomic_uint lock_epoch;
 static atomic_bool busy;
-typedef struct { pl_action_t action; int channel; int target; bool volume; unsigned epoch; protonlink_status_t before; } command_request_t;
+typedef struct { pl_action_t action; int channel; int target; bool volume; bool select_track; unsigned epoch; protonlink_status_t before; } command_request_t;
 static char response[MAX_STATUS + 1];
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
@@ -96,6 +96,12 @@ bool pl_request_volume(int channel, int target)
     if (!requests || !pl_is_unlocked() || !protonlink_snapshot(&req.before) || !pl_volume_step(&req.before,channel,target)) return false;
     return enqueue(&req);
 }
+bool pl_request_track(int track)
+{
+    command_request_t req={.select_track=true,.target=track,.epoch=atomic_load(&lock_epoch)};
+    if (!requests || !pl_is_unlocked() || !protonlink_snapshot(&req.before) || !pl_track_allowed(&req.before,track)) return false;
+    return enqueue(&req);
+}
 static bool send_path(command_request_t *req,const char *path)
 {
     if (!path || !pl_is_unlocked() || req->epoch != atomic_load(&lock_epoch) || !connected) return false;
@@ -126,6 +132,13 @@ static void execute_request(command_request_t *req)
     protonlink_status_t fresh;
     if (!pl_is_unlocked() || req->epoch!=atomic_load(&lock_epoch) || !fetch_status(&fresh)) return;
     publish(&fresh);
+    if (req->select_track) {
+        char path[48];
+        if (!pl_track_allowed(&fresh,req->target)) return;
+        snprintf(path,sizeof(path),"/music/select?track=%d",req->target);
+        send_path(req,path);
+        return;
+    }
     if (!req->volume) {
         const char *path=pl_command_path(req->action,&fresh);
         if ((req->action==PL_PLAY_STOP || req->action==PL_PAUSE_RESUME) &&
