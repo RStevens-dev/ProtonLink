@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loopback-only, fixed-target, read-only ProtonLink bridge. Standard library only."""
+"""Loopback-only, fixed-target ProtonLink bridge. Standard library only."""
 import argparse
 import http.client
 import ipaddress
@@ -77,7 +77,7 @@ def handler_for(target, port, allowed_hosts, commands=False):
                         return self.error_json(502, "Expected JSON object")
                     # Avoid exposing configuration secrets; only documented fields needed by the UI.
                     if url.path == "/bridge/config/device":
-                        value = {k: value[k] for k in ("songList", "buildDate", "audioVersion", "streamModes") if k in value}
+                        value = {k: value[k] for k in ("songList", "buildDate", "audioVersion", "audioCorrupt", "audioOutdated", "streamModes") if k in value}
                     self.reply(200, json.dumps(value).encode())
                 except (OSError, ValueError, http.client.HTTPException):
                     self.error_json(502, "Upstream unavailable or invalid JSON")
