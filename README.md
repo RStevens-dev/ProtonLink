@@ -12,7 +12,7 @@ A wearable field instrument, not a miniature desktop dashboard: glanceable visua
 
 ## Quick start (offline)
 
-Clone this repository and open `simulator/index.html` in a modern browser, or serve the repository locally:
+Clone this repository and serve it locally (ES modules require an HTTP origin):
 
 ```sh
 git clone https://github.com/RStevens-dev/ProtonLink.git
@@ -62,9 +62,9 @@ At connection: fetch status, discover supported endpoints via OpenAPI when avail
 | Command Center | Large shortcut tiles | Simulated |
 | Pack | Power, theme, stream, reported power | Simulated |
 | Music | Play/stop, pause/resume, skip, repeat, shuffle | Simulated |
-| Library | Track selection, names when configured | Simulated |
+| Library | Track selection; configured names planned | Simulated |
 | Mixer | Master, effects, music, mute | Simulated |
-| Streams | Capability-filtered stream selector | Simulated |
+| Streams | Stream selector; capability filtering planned | Simulated |
 | Themes | 1984, 1989, 2021, 2024 | Simulated |
 | Effects | Smoke, vibration, direction, vent | Simulated; guarded |
 | Diagnostics | Pack/wand, cable, cyclotron, firing, alarm state | Simulated |
@@ -72,7 +72,7 @@ At connection: fetch status, discover supported endpoints via OpenAPI when avail
 | Workshop | Lighting, pack, wand and Attenuator configuration | Planned |
 | Settings | Network, favorites, face, lock, voice | Planned |
 
-Everyday screens should be reachable via direct shortcuts and horizontal swipe navigation. Secondary pages should have a back action. Reserve header/content/footer regions and use vertical scrolling for lists; no controls may overlap navigation. Target large touch areas and test long labels at native resolution.
+Everyday screens are reachable via direct shortcuts; horizontal swipe navigation is planned beyond the unlock gesture. Secondary pages should have a back action; the current prototype uses Home, Music and Pack shortcuts instead. Reserve header/content/footer regions and use vertical scrolling for lists; no controls may overlap navigation. Target large touch areas and test long labels at native resolution.
 
 ### Field Lock
 
@@ -118,7 +118,7 @@ Native firmware directories are intentionally not represented as implemented cod
 
 ## Development and tests
 
-Run `node --test simulator/model.test.js` with a recent Node.js version. The tests cover local state transitions, guards, track boundaries and idempotent desired playback state. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
+Run `node --test simulator/model.test.js` with a recent Node.js version. The included tests are intended to cover local state transitions, guards, track boundaries and idempotent desired playback state; execution has not yet been verified. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
 
 Manual acceptance checklist: locked taps do not mutate equipment; early release or moved hold cancels; expired unlock window relocks; distinct swipe is required; navigation never overlaps; lists scroll; music continues on lock; offline disables controls; unsupported modes are hidden; warnings remain visible; reconnect reads authoritative status; track IDs and names remain correct.
 
@@ -128,7 +128,7 @@ See [roadmap](docs/ROADMAP.md). The first release is a simulator/design baseline
 
 ## Branding and attribution
 
-ProtonLink has its own industrial badge identity: red/orange caged beacon, yellow conduit, steel enclosure, white/red lettering and yellow/black hazard stripes. Final artwork is supplied by the project owner. See [branding notes](docs/BRANDING.md) for the asset workflow and material sources.
+ProtonLink has its own industrial badge identity: red/orange caged beacon, yellow conduit, steel enclosure, white/red lettering and yellow/black hazard stripes. Final artwork is supplied by the project owner; the original PNG and SVG still need to be uploaded to assets/branding/. See [branding notes](docs/BRANDING.md) for the asset workflow and material sources.
 
 - [Original GPStar source](https://github.com/gpstar81/GPStar-proton-pack) (archived repository used for research)
 - [GPStar current source](https://github.com/GPStarTechnologies/GPStar-Core-Source)
