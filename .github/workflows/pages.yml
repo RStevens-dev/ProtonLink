@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js
+      - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js && node --check simulator/lab.js
       - name: Check browser module syntax
         run: |
           python -c "from pathlib import Path; s=Path('simulator/index.html').read_text(); Path('simulator/.check.mjs').write_text(s.split('<script type=\"module\">')[1].split('</script>')[0])"
@@ -41,7 +41,7 @@ jobs:
       - name: Stage static simulator only
         run: |
           mkdir -p _site
-          cp simulator/index.html simulator/model.js simulator/cases.js simulator/protocol.js _site/
+          cp simulator/index.html simulator/model.js simulator/cases.js simulator/protocol.js simulator/lab.js _site/
           if [ -f assets/branding/ProtonLink.png ]; then cp assets/branding/ProtonLink.png _site/branding.png; fi
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3

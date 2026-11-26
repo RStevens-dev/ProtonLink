@@ -1,5 +1,6 @@
 import {initial,dispatch} from './model.js';
 import {exchange,route,connect,status} from './protocol.js';
+import {simulate,diff,defaults,readPreview} from './lab.js';
 const open=()=>dispatch(initial(),{type:'unlock'});
 const check=(condition,message)=>{if(!condition)throw new Error(message)};
 export const cases=[
@@ -27,5 +28,13 @@ cases.push(
  ['Locked protocol sends no HTTP requests',()=>{check(exchange(initial(),{type:"play"}).events.every(e=>e.kind==="LOCAL"),"traffic while locked")}],
  ['Offline protocol does not invent response',()=>{const s={...initial(),online:false};check(!connect(s).some(e=>e.summary.includes("200 OK")||e.kind==="WS"),"false reply")}],
  ['Theme changes blocked when powered',()=>{const s={...open(),pack:true};check(exchange(s,{type:"theme",value:"1989"}).state===s,"theme changed")}]
+);
+cases.push(
+ ["Dropped response can leave authoritative state changed",()=>{let s=open();let x=simulate(s,{type:"play"},{fault:"response"},()=>.5);check(x.state.playing&&!x.delivered,"missing divergence");check(diff(status(s),status(x.state)).some(d=>d.field==="musicPlaying"),"missing diff")}],
+ ["Dropped request does not mutate pack",()=>{let s=open();check(simulate(s,{type:"play"},{loss:100},()=>.5).state===s,"request mutated pack")}],
+ ["Injected conflict does not mutate pack",()=>{let s=open();check(simulate(s,{type:"play"},{fault:"409"},()=>.5).state===s,"conflict mutated pack")}],
+ ["Profile filters unavailable stream",()=>{let s=open();check(simulate(s,{type:"stream",value:"Halloween"},{profile:"legacy"}).state===s,"unsupported stream")}],
+ ["Legacy profile lacks OpenAPI",()=>{check(readPreview("/openapi.json",initial(),{profile:"legacy"})===null,"legacy exposed discovery")}],
+ ["Disconnected gateway blocks command",()=>{let s=open();check(simulate(s,{type:"play"},{gateway:false}).state===s,"gateway offline write")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

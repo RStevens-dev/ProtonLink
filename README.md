@@ -25,6 +25,10 @@ The function-test panel runs the same isolated assertions as Node CI. Tests neve
 3. In Actions, run **Test and deploy simulator** if the initial push did not deploy.
 4. Subsequent pushes to main run tests and deploy only when tests pass. Pull requests run tests without publishing. The Pages artifact contains only the static simulator, not credentials or real transport code.
 
+## Expanded development laboratory
+
+The bench includes four selectable lock faces, warning screens, native hold-to-confirm controls, swipe navigation, configurable favorites, era accents, ambient dimming, local lighting previews, resizable columns, a simulated Attenuator, API explorer, transport fault injection, watch/pack state comparison and session recording/replay. See [laboratory scope and limitations](docs/LAB.md). Configuration writes are intentionally disabled; all transport is local simulation.
+
 ## Quick start (offline)
 
 Clone this repository and serve it locally (ES modules require an HTTP origin):
