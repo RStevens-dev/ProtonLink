@@ -191,3 +191,12 @@ Use Development Tools → Track library or Music → Library → Manage names on
 Settings → Main screen → Industrial Quick Control. Three themed horizontal volume adjusters, guarded START/STOP/VENT, status area opens menu, tap lights toggles PKE, hold lights for 1.5 seconds engages Field Lock. See [Quick Control](docs/QUICK_CONTROL.md).
 
 Industrial Quick Control also includes an auxiliary transport module with named track readout, start/stop, pause/resume, previous/next and direct track library access.
+
+
+Development batches use feature branches and pull requests into develop. See [development workflow](docs/DEVELOPMENT.md).
+
+
+Batch 2 adds field setup, audio presets, favorites, playlists and local pack profiles; see [field functionality](docs/FIELD_SETUP.md).
+
+
+Batch 3 adds display finishes, adaptive telemetry-driven animations, startup, ambient mode, local session statistics and optional virtual hardware; see [visual identity](docs/IMMERSION.md).

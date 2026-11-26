@@ -1,3 +1,6 @@
+import {normalizeVisual,equipmentState,illumination,activeFace,scanRate,eventChanges,emptyStats,accumulate,hardwareMarkup} from './immersion.js';
+import {normalizeField,gesturePage,selectTracks,readiness,reduceAudio,equipmentSnapshot,equipmentPlan} from './field.js';
+import {fresh,linked,classify,commandGuard,backup,parseBackup,scenarios,runScenario} from './reliability.js';
 import {isQuick,toggleQuick,unlockPage,idlePage,allowed as quickAllowed,intent as quickIntent,quickHeader,quickBody,quickTransport} from './quick.js';
 import {fromDevice,trackTitle,importTracks,fromFilenames,escapeHTML} from './library.js';
 import {initial,dispatch,canChangeStream} from './model.js';
@@ -93,5 +96,31 @@ cases.push(
  ["Industrial transport start and pause follow playback",()=>{const s=open(),a=quickTransport(s,false,"A"),b=quickTransport({...s,playing:true,paused:true},false,"B");check(a.includes('data-act="play"')&&a.includes('data-act="pause" disabled')&&b.includes('data-act="stop"')&&b.includes("RESUME"),"transport state")}],
  ["Industrial transport uses existing music routes",()=>{const s=open();check(route(s,{type:"play"})==="/music/startstop"&&route({...s,playing:true},{type:"pause"})==="/music/pauseresume"&&route(s,{type:"track",value:503})==="/music/select?track=503","route mapping")}],
  ["Industrial transport blocks writes while offline",()=>{const h=quickTransport({...open(),online:false},false,"A");check((h.match(/ disabled/g)||[]).length===4,"offline guard")}]
+);
+cases.push(
+ ["Telemetry expires after 15 seconds",()=>{check(fresh(1000,16000)&&!fresh(1000,16001),"freshness")}],
+ ["Stale telemetry blocks commands",()=>{check(commandGuard(open(),defaults(),{type:"play"},1000,20000)==="Telemetry stale","guard")}],
+ ["Dropped response classified uncertain",()=>{check(classify(simulate(open(),{type:"play"},{fault:"response"}))==="UNCERTAIN","classification")}],
+ ["Configuration backup round trip",()=>{const x=parseBackup(JSON.stringify(backup("pke",{mainMode:"quick"},{local:{500:"Theme"},synced:{},auto:true},{})));check(x.trackStore.local[500]==="Theme"&&x.preferences.mainMode==="quick","backup")}],
+ ...scenarios.map(spec=>["Scenario: "+spec.name,()=>{const r=runScenario(spec);check(r.pass,r.error)}])
+);
+cases.push(
+ ["Quick module order and hidden modules are preserved",()=>{const f=normalizeField({order:["transport","music"],hidden:["effects"]});const h=quickBody(open(),["master","effects","music"],{},false,"A",f);check(h.indexOf("quick-transport")<h.indexOf('data-channel="music"')&&!h.includes('data-channel="effects"'),"layout")}],
+ ["Horizontal gestures stay in allowed navigation pages",()=>{check(gesturePage("quick",-100,5)==="monitor"&&gesturePage("field",-100,0)==="field"&&gesturePage("music",10,100)==="music","gesture")}],
+ ["Track search preserves authoritative IDs",()=>{check(selectTracks(500,505,id=>id===503?"Theme":"Other","theme")[0]===503,"search")}],
+ ["Favorite and playlist filters preserve track range",()=>{const f=normalizeField({favorites:[500,500,9000],playlists:[{name:"Set",ids:[503,501]}]});check(f.favorites.length===1&&f.playlists[0].ids[0]===503&&selectTracks(500,502,String,"",f.playlists[0].ids).join()==="501","library")}],
+ ["Audio reduction rounds to supported increments",()=>{check(reduceAudio([75,80,70]).join()==="40,40,35","audio")}],
+ ["Equipment preset never enables smoke or powers equipment",()=>{const s=open(),p=equipmentSnapshot("Test",{...s,smoke:true,pack:true});check(!equipmentPlan(s,p,false).some(a=>a.type==="power"||a.type==="smoke"),"preset guard")}],
+ ["Startup check flags missing cable and stale telemetry",()=>{check(readiness({...open(),cable:false},true,false).filter(x=>!x[1]).length===2,"readiness")}],
+ ["Pack profiles store separate track names",()=>{const f=normalizeField({packs:[{name:"A",tracks:{local:[{id:500,title:"A"}]}},{name:"B",tracks:{local:[{id:500,title:"B"}]}}]});check(f.packs[0].tracks.local[0].title!==f.packs[1].tracks.local[0].title,"profiles")}]
+);
+cases.push(
+ ["Visual preferences preserve default PKE behavior",()=>{const v=normalizeVisual();check(v.finish==="weathered"&&!v.dynamic&&activeFace("pke",open(),v)==="pke","defaults")}],
+ ["Adaptive illumination follows alarm and vent telemetry",()=>{check(illumination({...open(),cable:false})==="#ff6758"&&equipmentState({...open(),temperature:"Venting"})==="venting","illumination")}],
+ ["Dynamic faces obey alarm priority",()=>{const v=normalizeVisual({dynamic:true,firingFace:"analog",alarmFace:"mission"});check(activeFace("pke",{...open(),firing:true},v)==="analog"&&activeFace("pke",{...open(),firing:true,cable:false},v)==="mission","priority")}],
+ ["PKE sweep accelerates with equipment condition",()=>{check(scanRate({...open(),pack:true,firing:true})>scanRate(open())&&scanRate({...open(),online:false})===0,"scan")}],
+ ["Event overlays only reflect observed changes",()=>{const s=open();check(eventChanges(s,{...s,pack:true,track:503}).join()==="PACK ACTIVATED,AUDIO TRACK 503"&&eventChanges(s,{...s,online:false,pack:true}).join()==="LINK LOST","events")}],
+ ["Session statistics separate observed and unknown time",()=>{const s={...open(),pack:true,firing:true,level:3};let n=accumulate(emptyStats(),s,{...s,temperature:"Venting"},1000);n=accumulate(n,s,{...s,online:false},2000);check(n.packMs===1000&&n.firingMs===1000&&n.vents===1&&n.levels[2]===1000&&n.unknownMs===2000,"stats")}],
+ ["Hardware previews only draw selected optional components",()=>{check(!hardwareMarkup(open(),{}).includes("N-FILTER")&&hardwareMarkup(open(),{filter:true}).includes("N-FILTER"),"hardware")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}
