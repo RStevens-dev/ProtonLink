@@ -1,3 +1,4 @@
+import {isQuick,toggleQuick,unlockPage,idlePage,allowed as quickAllowed,intent as quickIntent,quickHeader,quickBody} from './quick.js';
 import {fromDevice,trackTitle,importTracks,fromFilenames,escapeHTML} from './library.js';
 import {initial,dispatch,canChangeStream} from './model.js';
 import {exchange,route,connect,status,sync} from './protocol.js';
@@ -78,5 +79,13 @@ cases.push(
  ["Numbered audio filenames preserve real IDs",()=>{const m=fromFilenames(["503 Theme.wav","500 Intro.wav"],500,520);check(m[503]==="Theme"&&m[500]==="Intro","filename mapping")}],
  ["Out of range and duplicate imports are rejected",()=>{for(const data of ['[{"id":521,"title":"A"}]','[{"id":500,"title":"A"},{"id":500,"title":"B"}]']){let failed=false;try{importTracks(data,"x.json",500,520)}catch{failed=true}check(failed,"invalid accepted")}}],
  ["Imported names cannot inject watch HTML",()=>{check(escapeHTML('<img onerror="x">')==="&lt;img onerror=&quot;x&quot;&gt;","HTML escape")}]
+);
+cases.push(
+ ["Quick monitor toggle never unlocks Field Lock",()=>{check(toggleQuick("quick")==="monitor"&&toggleQuick("monitor")==="quick"&&toggleQuick("field")==="field","navigation")}],
+ ["Quick mode remains opt-in and returns from submenu inactivity",()=>{check(unlockPage("field")==="home"&&unlockPage("quick")==="quick"&&idlePage("quick","music")==="quick"&&idlePage("quick","monitor")===null&&idlePage("field","music")==="field","idle")}],
+ ["Quick commands are blocked while locked or disconnected",()=>{check(!quickAllowed(initial(),"on")&&!quickAllowed({...open(),online:false},"on")&&quickAllowed(open(),"on"),"guards")}],
+ ["Quick commands map to existing API intentions",()=>{check(quickIntent("on").value===true&&quickIntent("off").value===false&&quickIntent("vent").type==="vent","intent")}],
+ ["Quick stop stays available during vent cycle",()=>{const s={...open(),pack:true,temperature:"Venting"};check(quickAllowed(s,"off")&&!quickAllowed(s,"vent")&&!quickAllowed(s,"on"),"vent guard")}],
+ ["Quick markup contains three faders and menu and monitor entry",()=>{const s=open(),body=quickBody(s,["master","effects","music"],{},false),head=quickHeader(s,"12:00",4);check((body.match(/data-fader=/g)||[]).length===3&&head.includes('data-act="go:home"')&&head.includes('id="quickDots"'),"markup")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

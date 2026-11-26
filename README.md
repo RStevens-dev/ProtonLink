@@ -184,3 +184,8 @@ Eleven selectable faces, with **PKE Scanner as the factory default**. See [Field
 ## Track library manager
 
 Use Development Tools → Track library or Music → Library → Manage names on phone / computer. Automatic simulated GPStar `songList` synchronization, local overrides, TXT/CSV/JSON/M3U and numbered audio filename imports, mapping preview and JSON export. See [Track library](docs/TRACK_LIBRARY.md). Browser-local storage only; native Wi-Fi configuration portal and QR provisioning remain future firmware work.
+
+
+## Industrial Quick Control
+
+Settings → Main screen → Industrial Quick Control. Three themed horizontal volume adjusters, guarded START/STOP/VENT, status area opens menu, tap lights toggles PKE, hold lights for 1.5 seconds engages Field Lock. See [Quick Control](docs/QUICK_CONTROL.md).
