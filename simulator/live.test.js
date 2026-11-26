@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {discover,configured,deviceTracks} from './discovery.js';
+import {commandPath,outcome,sendCommand} from './commands.js';
+import {hardwareProfile} from './hardware.js';
+test('legacy discovery requests preferences before reading',async()=>{const calls=[];const p=await discover({get:async k=>{calls.push(k);return {prefsAvailable:true,smokeEnabled:true,cyclotronDirection:1}}},()=>true,async()=>{});assert.deepEqual(calls,['settings/pack','config/pack','settings/wand','config/wand','settings/smoke','config/smoke']);assert.equal(configured(p).smoke,true);assert.equal(configured({smoke:{prefsAvailable:false,smokeEnabled:false}}).smoke,null)});
+test('duplicate prefix retains positional track with warning',()=>{const x=deviceTracks({songList:'513 Saving Repeat\n513 thunderstruck'},513,514);assert.equal(x.names[514],'thunderstruck');assert.equal(x.warnings.length,1)});
+test('explicit command and outcome are independent',async()=>{assert.equal(commandPath({}, {type:'smoke',value:false}),'/pack/smoke/off');assert.throws(()=>commandPath({}, {type:'smoke'}));assert.equal(outcome({}, {online:true,smoke:null},{type:'smoke',value:false}),'ACKNOWLEDGED / UNOBSERVABLE');assert.equal(outcome({}, {online:true,pack:true},{type:'power',value:true}),'CONFIRMED');await sendCommand('/pack/on',async(path,opts)=>{assert.equal(path,'/bridge/pack/on');assert.equal(opts.method,'PUT');return {ok:true,json:async()=>({status:'success'})}})});
+test('hardware counts only from synchronized preferences',()=>{assert.deepEqual(hardwareProfile({pack:{prefsAvailable:true,ledCycLidCount:20,ledCycCakeCount:35,ledPowercellCount:15,ledCycCavCount:0},wand:{prefsAvailable:true,numBargraphSegments:28}}),{outer:20,inner:35,cell:15,bargraph:28,cavity:0});assert.equal(hardwareProfile({pack:{prefsAvailable:false,ledCycLidCount:20}}).outer,null)});
