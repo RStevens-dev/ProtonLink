@@ -38,3 +38,8 @@ const char *pl_volume_step(const protonlink_status_t *s, int channel, int target
     static const char *const down[] = {"/volume/master/down","/volume/effects/down","/volume/music/down"};
     return target > current ? up[channel] : down[channel];
 }
+
+bool pl_track_allowed(const protonlink_status_t *s, int track)
+{
+    return s && s->online && s->music_known && s->track_first>=500 && s->track_last<=4595 && track>=s->track_first && track<=s->track_last;
+}
