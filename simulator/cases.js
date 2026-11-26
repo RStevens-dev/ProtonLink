@@ -1,3 +1,4 @@
+import {decodeStatus,capabilitySummary,ReadOnlyTransport} from './live.js';
 import {normalizeVisual,equipmentState,illumination,activeFace,scanRate,eventChanges,emptyStats,accumulate,hardwareMarkup} from './immersion.js';
 import {normalizeField,gesturePage,selectTracks,readiness,reduceAudio,equipmentSnapshot,equipmentPlan} from './field.js';
 import {fresh,linked,classify,commandGuard,backup,parseBackup,scenarios,runScenario} from './reliability.js';
@@ -122,5 +123,10 @@ cases.push(
  ["Event overlays only reflect observed changes",()=>{const s=open();check(eventChanges(s,{...s,pack:true,track:503}).join()==="PACK ACTIVATED,AUDIO TRACK 503"&&eventChanges(s,{...s,online:false,pack:true}).join()==="LINK LOST","events")}],
  ["Session statistics separate observed and unknown time",()=>{const s={...open(),pack:true,firing:true,level:3};let n=accumulate(emptyStats(),s,{...s,temperature:"Venting"},1000);n=accumulate(n,s,{...s,online:false},2000);check(n.packMs===1000&&n.firingMs===1000&&n.vents===1&&n.levels[2]===1000&&n.unknownMs===2000,"stats")}],
  ["Hardware previews only draw selected optional components",()=>{check(!hardwareMarkup(open(),{}).includes("N-FILTER")&&hardwareMarkup(open(),{filter:true}).includes("N-FILTER"),"hardware")}]
+);
+cases.push(
+ ["Live status mapping uses reported equipment state",()=>{const raw=status({...open(),pack:true,level:4,track:503});const x=decodeStatus(raw);check(x.pack&&x.level===4&&x.track===503&&x.locked,"mapping")}],
+ ["Empty and malformed status rejected",()=>{for(const x of [{},null,{...status(open()),volMaster:900}]){let rejected=false;try{decodeStatus(x)}catch{rejected=true}check(rejected,"invalid accepted")}}],
+ ["Live capabilities do not invent OpenAPI",()=>{check(capabilitySummary({buildDate:"test"},null).openapi===null,"capability")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}
