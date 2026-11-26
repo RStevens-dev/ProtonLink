@@ -2,6 +2,8 @@ import {route} from './protocol.js';
 import {canChangeStream, streams, themes} from './model.js';
 const explicit={mute:["/volume/unmute","/volume/mute"],loop:["/music/loop/all","/music/loop/one"],shuffle:["/music/shuffle/off","/music/shuffle/on"],smoke:["/pack/smoke/off","/pack/smoke/on"],vibration:["/pack/vibration/off","/pack/vibration/on"],direction:["/pack/cyclotron/counterclockwise","/pack/cyclotron/clockwise"],cable:["/pack/cable/off","/pack/cable/on"]};
 export function liveStreamAllowed(s) {
+ if (s.canChangeStream === false || s.lockout === true) return false;
+ if (s.canChangeStream === true) return s.pack === true && s.firing === false && s.cable === true && s.temperature === "Normal" && ["Normal","Active"].includes(s.cyclotron) && s.ramping !== true;
  if (s.mode !== "Super Hero") return s.ramping === false && canChangeStream(s);
  // The legacy stream handler validates VG eligibility and transitions internally.
  return s.pack === true && s.firing === false && s.cable === true &&
@@ -9,7 +11,7 @@ export function liveStreamAllowed(s) {
    s.ramping !== true && s.vgMode !== false;
 }
 export function commandPath(s,a){
- const normal = ["Normal","Active"].includes(s.cyclotron) && s.firing === false && s.temperature === "Normal";
+ const normal = ["Normal","Active"].includes(s.cyclotron) && s.firing === false && s.temperature === "Normal" && s.lockout !== true;
  if (["power","vent"].includes(a.type) || (a.type === "smoke" && a.value)) {
    if (a.confirmed !== true) throw Error("Hold to confirm this command");
  }
