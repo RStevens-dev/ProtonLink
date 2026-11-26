@@ -35,3 +35,23 @@ Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main
 
 ## Visual parity
 The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`: industrial metal panels, red LINK wordmark, three channel colors, numeric readouts, fader tracks, scale marks, green track readout and hazard separator. Native LVGL uses a simplified continuous indicator and rectangular hazard marks rather than the browser's segmented LEDs and diagonal texture. Track titles, LIST, PKE face navigation and exact browser hold/swipe timing remain to be ported. The physical layout requires display/touch validation.
+
+## Native macOS simulator
+
+The desktop target compiles the exact same `main/ui.c` and `main/control.c` as the ESP32, using LVGL 9.5 and SDL2 with simulated telemetry. It never connects to equipment. Download the appropriate Apple Silicon (arm64) or Intel (x86_64) artifact from the Native desktop simulator GitHub Actions workflow after it passes. Extract both ZIP layers if necessary, keep the executable and lib folder together, and run from Terminal:
+
+```sh
+cd /path/to/dist
+./ProtonLinkDesktop
+```
+
+The artifacts are ad-hoc signed development executables, not notarized Mac apps. Alternatively build locally with Homebrew:
+
+```sh
+brew install cmake sdl2
+cmake -S firmware/desktop -B build-desktop -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
+cmake --build build-desktop --parallel
+./build-desktop/ProtonLinkDesktop
+```
+
+Hold the lock button using the mouse to enable simulated controls; drag sliders and release. Press 0 for link loss, 1 for normal link, 2 for firing, 3 for critical/lockout, Escape to quit. Simulated vent lasts four seconds. The desktop does not model network latency or physical display/touch/battery characteristics.
