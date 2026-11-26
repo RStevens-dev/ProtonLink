@@ -1,4 +1,4 @@
-name: Test and deploy simulator
+name: Simulator regression tests
 on:
   push:
     branches: [main]
@@ -16,47 +16,13 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js && node --check simulator/lab.js && node --check simulator/volume.js && node --check simulator/faces.js && node --check simulator/library.js && node --check simulator/quick.js
-      - run: python -m py_compile scripts/deploy_pages.py
+      - name: Verify branch-published entry point and module paths
+        run: |
+          test -f .nojekyll
+          grep -q 'url=./simulator/' index.html
+          python -c "import re; from pathlib import Path; p=Path('simulator'); files=[p/'index.html', *p.glob('*.js')]; missing=[str(f)+': '+m for f in files for m in re.findall(r'''from\s+['\"](\./[^'\"]+)['\"]''',f.read_text()) if not (p/m).is_file()]; assert not missing, missing"
       - name: Check browser module syntax
         run: |
           python -c "from pathlib import Path; s=Path('simulator/index.html').read_text(); Path('simulator/.check.mjs').write_text(s.split('<script type=\"module\">')[1].split('</script>')[0])"
           node --check simulator/.check.mjs
           rm simulator/.check.mjs
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
-      pages: write
-      id-token: write
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - name: Stage static simulator only
-        run: |
-          mkdir -p _site
-          cp simulator/index.html simulator/model.js simulator/cases.js simulator/protocol.js simulator/lab.js simulator/volume.js simulator/faces.js simulator/library.js simulator/quick.js _site/
-          if [ -f assets/branding/ProtonLink.png ]; then cp assets/branding/ProtonLink.png _site/branding.png; fi
-          touch _site/.nojekyll
-      - uses: actions/upload-pages-artifact@v3
-        id: upload
-        with:
-          path: _site
-          name: github-pages-${{ github.run_attempt }}
-          retention-days: 3
-      - name: Deploy uploaded artifact by ID
-        id: deployment
-        timeout-minutes: 12
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
-          ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
-        run: python scripts/deploy_pages.py

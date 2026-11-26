@@ -1,12 +1,23 @@
 # GitHub Pages deployment
 
-The custom workflow tests all simulator modules before packaging the static site. In repository Settings → Pages, choose **GitHub Actions** for the source. Branch publishing is a fallback only: the root index redirects to simulator/ and does not use the custom Pages artifact.
+## Required repository setting
 
-The deployment job explicitly grants actions: read, pages: write, and id-token: write. It uploads an attempt-specific artifact, checks for visibility through the Actions REST API with the same job token, and waits up to approximately 90 seconds before failing with an actionable message. The deploy action receives the exact same artifact name. This avoids relying on immediate artifact indexing and avoids selecting an earlier attempt's artifact.
+Open https://github.com/RStevens-dev/ProtonLink/settings/pages and select:
 
-On November 25, 2026, runs 45747544831 attempts 1 and 2 passed the test job and uploaded an artifact, but deploy-pages reported zero artifacts. The second artifact subsequently appeared in the Actions REST API. Missing explicit actions: read and indexing delay were plausible causes; the original logs do not establish which was decisive. The workflow changes address both. If Pages still rejects deployment, verify the repository source is GitHub Actions and inspect the deploy job logs. Do not disable tests to bypass deployment.
+- Source: **Deploy from a branch**
+- Branch: **main**
+- Folder: **/ (root)**
 
+Save the setting. GitHub's native Pages service publishes the branch. The root index redirects to ./simulator/; the simulator imports its JavaScript modules directly from that directory. The root .nojekyll file disables Jekyll processing.
 
-## Direct artifact-ID deployment
+## Regression testing
 
-Two November 26 builds passed tests and uploaded valid artifacts, but `actions/deploy-pages@v4` returned zero artifacts from its separate Actions artifact service even after the REST API confirmed visibility. The workflow now uses the upload action's `artifact_id` output, verifies the ID/name/workflow run through the REST API, obtains the job OIDC token and creates the Pages deployment directly using the same REST payload as the official action. It polls until success or a terminal failure. No application code changes. Pages must be configured for GitHub Actions. Credentials remain job-scoped and masked; the workflow fails if deployment is not verified. See https://github.com/actions/deploy-pages/blob/v4/src/internal/api-client.js and https://github.com/actions/deploy-pages/blob/v4/src/internal/deployment.js.
+The existing .github/workflows/pages.yml is now test-only, named Simulator regression tests. It runs on main pushes, pull requests and manual dispatch. It checks the shared regression suite, module syntax, root redirect and local module references. Native branch publishing is independent of this workflow and is not gated by its result. Check tests before merging changes. No custom upload artifact, deployment API, OIDC credential or Pages write permission remains.
+
+## Rationale
+
+Several November 26, 2026 runs passed tests but failed in custom artifact discovery or Pages publishing. The last direct API deployment (run 45760633876) created a deployment but received deployment_failed. Branch publishing removes the custom machinery. It does not guarantee GitHub service availability. If publishing fails, inspect the native pages build and deployment workflow and verify the source setting.
+
+Public URL: https://rstevens-dev.github.io/ProtonLink/
+
+The entire public branch may be served by Pages; do not commit private credentials or personal configuration. The simulator remains offline-only. The final branding image is optional and loaded from assets/branding/ProtonLink.png when present.

@@ -21,9 +21,9 @@ The function-test panel runs the same isolated assertions as Node CI. Tests neve
 ### GitHub Pages setup
 
 1. Open repository Settings → Pages.
-2. Under Build and deployment, select GitHub Actions as the source.
-3. In Actions, run **Test and deploy simulator** if the initial push did not deploy.
-4. Subsequent pushes to main run tests and deploy only when tests pass. Pull requests run tests without publishing. The Pages artifact contains only the static simulator, not credentials or real transport code.
+2. Under Build and deployment, select **Deploy from a branch**.
+3. Select **main** and **/ (root)**, then Save.
+4. GitHub's native Pages workflow publishes main directly; the root redirects to simulator/. The separate Simulator regression tests workflow runs on pushes and pull requests. Branch publishing is not gated by that test job, so check tests before merging. All publishable repository files are public; never commit credentials.
 
 ## Gen 1 equipment fidelity
 
@@ -150,7 +150,7 @@ Native firmware directories are intentionally not represented as implemented cod
 
 ## Development and tests
 
-Run `node --test simulator/model.test.js` with a recent Node.js version. The shared function suite covers state transitions, guards, physical control synchronization, track boundaries, reconnect and idempotent desired playback state. Run npm test locally or the test panel in the browser. GitHub Actions gates Pages deployment on passing tests. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
+Run `node --test simulator/model.test.js` with a recent Node.js version. The shared function suite covers state transitions, guards, physical control synchronization, track boundaries, reconnect and idempotent desired playback state. Run npm test locally or the test panel in the browser. GitHub Actions runs regression tests independently of native branch publishing. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
 
 Manual acceptance checklist: locked taps do not mutate equipment; early release or moved hold cancels; expired unlock window relocks; distinct swipe is required; navigation never overlaps; lists scroll; music continues on lock; offline disables controls; unsupported modes are hidden; warnings remain visible; reconnect reads authoritative status; track IDs and names remain correct.
 
