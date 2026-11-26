@@ -7,6 +7,6 @@ export function decodeStatus(x){if(!x||typeof x!=="object"||Array.isArray(x))thr
 export const isLocal=host=>["localhost","127.0.0.1","[::1]"].includes(host);
 export function capabilitySummary(config,api){return {buildDate:typeof config?.buildDate==="string"?config.buildDate:"Unknown",audioVersion:config?.audioVersion??null,streamModes:Array.isArray(config?.streamModes)?config.streamModes:[],openapi:typeof api?.openapi==="string"?api.openapi:null,reportedRoutes:api?.paths?Object.keys(api.paths):[]}}
 export class ReadOnlyTransport{
- constructor(request=fetch){this.request=request}
- async get(path){if(!["status","config/device","openapi.json"].includes(path))throw Error("Read-only route denied");const response=await this.request("/bridge/"+path,{method:"GET",cache:"no-store",signal:AbortSignal.timeout(5000)});if(!response.ok)throw Error("Bridge HTTP "+response.status);return response.json()}
+ constructor(request=(...args)=>globalThis.fetch(...args)){this.request=request}
+ async get(path){if(!["status","config/device","openapi.json"].includes(path))throw Error("Read-only route denied");const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);try{const response=await this.request("/bridge/"+path,{method:"GET",cache:"no-store",signal:controller.signal});if(!response.ok)throw Error("Bridge HTTP "+response.status);return await response.json()}finally{clearTimeout(timer)}}
 }
