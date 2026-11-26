@@ -4,7 +4,28 @@
 
 ProtonLink is an independent wrist-mounted controller designed for the Waveshare ESP32-S3 2.06-inch AMOLED touch development board and compatible GPStar proton pack electronics. Its first target is the original-generation pack and Neutrona wand connected through an existing Wi-Fi-enabled GPStar Attenuator. It is not an official GPStar product and does not require GPStar II motion hardware.
 
-> Development status: early prototype. The browser simulator is a local model, not working watch firmware. No physical hardware tests have been performed. Do not flash this repository onto a watch.
+> Development status: early prototype. The browser bench runs offline or connects to real equipment through the optional local bridge. Native watch firmware is still planned.
+
+## GPStar version and compatibility
+
+The reference rig is **GPStar I (Gen 1)** with a non-motion Neutrona wand and a Wi-Fi Attenuator. Its captured status reports **Super Hero** mode. The exact pack board revision and installed firmware release numbers for the pack, wand and Attenuator have yet to be recorded. An Attenuator build date identifies that gateway build only. The reported movie year identifies the selected era. See the [captured Gen 1 status](tests/fixtures/legacy-gen1-status.json).
+
+| Function | Gen 1 behavior in ProtonLink |
+|---|---|
+| Field Lock and telemetry | Unlock opens Industrial Control. The reference capture includes pack and wand power, firing, cable, lid, temperature, track and three volume levels. The bridge polls status and the browser can receive WebSocket updates. |
+| Pack power and Manual Vent | Hold START, STOP or VENT on the main panel. Live commands require command-enabled bridge mode, fresh telemetry and eligible pack state. Vent requires the pack to be on. These controls are implemented. Physical vent confirmation is still pending. |
+| Three audio faders | System Output adjusts master volume, Discharge Effects adjusts effects **audio volume**, and Auxiliary Audio adjusts music volume. Live adjustments use step commands and reconcile the reported level. |
+| Music and track library | Start/stop, pause/resume, previous/next and track selection are implemented. Use the gateway’s reported track range. The reference capture reports IDs 500–514. Command behavior still needs verification on each firmware build. |
+| Movie era and stream | Display the reported values in Pack Info. The owner reports that none of the four year changes or stream selection work on this rig. Industrial Control offers neither selector. |
+| Smoke and vibration | Dedicated toggles are unavailable on the reference rig. Manual Vent remains a separate command. |
+| Configuration and native watch | The bridge can read available pack, wand and smoke preferences. Lighting previews and local presets do not write firmware configuration. Persistent equipment settings, native watch firmware and GPStar II motion features are outside current live support. |
+
+### Bringing up a later revision
+
+1. Record the pack and wand board revisions, their firmware releases and the Attenuator build separately. Connect in read-only mode and capture sanitized status, device metadata, available preferences and OpenAPI paths, if supplied.
+2. Compare field names, types, units and missing values against the legacy capture. Update the status decoder and preference discovery for actual differences. Keep missing values unknown. [Status decoder](simulator/live.js) · [Preference discovery](simulator/discovery.js)
+3. Check each proposed control against the firmware’s command route, method, state guards and response. Current live era selection requires confirmed ESP32 pack preferences and an advertised year-specific PUT route. Stream selection checks individual routes. Smoke and vibration each require both on and off routes. For a changed API, update the bridge allowlist, command mapping and UI capability checks together. [Bridge](scripts/live_bridge.py) · [Live commands](simulator/commands.js)
+4. Add a fixture for that revision alongside the Gen 1 fixture. Test unlock, visible controls, telemetry loss and reconnect on both profiles. With the new hardware connected, verify one eligible command at a time against returned status or an observed physical result before marking it hardware-confirmed. [Live integration](docs/LIVE_INTEGRATION.md)
 
 ## Vision
 
@@ -14,7 +35,7 @@ A wearable field instrument, not a miniature desktop dashboard: glanceable visua
 
 [Open the ProtonLink test bench](https://rstevens-dev.github.io/ProtonLink/) (available after GitHub Pages is enabled and the deployment succeeds).
 
-The browser bench uses three fixed viewport columns: a native-resolution 410 × 502 watch preview, a virtual pack and wand, and a tabbed development console (Live output is the default; Tests, Telemetry and Events are alternate views). No document scrolling is needed on desktop; logs and long watch lists scroll within their panels. On narrow displays, use the Watch / Pack / Live output tabs to switch sections. The watch UI is scaled as a single fixed-resolution instrument, rather than reflowing its controls with browser width. Both read the same state model. Watch commands update the pack; physical pack controls update the watch even while Field Lock is active. Offline mode hides watch telemetry and blocks commands while the virtual pack remains operable. Scenario injection covers standby, active, firing, warning, critical, venting and disconnected conditions. The full-width shared communications console shows timestamped simulated HTTP requests, status-code responses, JSON payloads and /ws text frames, with filters, pause/resume, clear, export and optional polling. Physical controls generate push events rather than artificial watch requests. The event log and simulated /status JSON expose changes for debugging. No network commands or audio playback occur.
+The browser bench uses three fixed viewport columns: a native-resolution 410 × 502 watch preview, a virtual pack and wand, and a tabbed development console (Live output is the default; Tests, Telemetry and Events are alternate views). No document scrolling is needed on desktop; logs and long watch lists scroll within their panels. On narrow displays, use the Watch / Pack / Live output tabs to switch sections. The watch UI is scaled as a single fixed-resolution instrument, rather than reflowing its controls with browser width. Both read the same state model. Watch commands update the pack; physical pack controls update the watch even while Field Lock is active. Offline mode hides watch telemetry and blocks commands while the virtual pack remains operable. Scenario injection covers standby, active, firing, warning, critical, venting and disconnected conditions. The full-width shared communications console shows timestamped simulated HTTP requests, status-code responses, JSON payloads and /ws text frames, with filters, pause/resume, clear, export and optional polling. Physical controls generate push events rather than artificial watch requests. The event log and simulated /status JSON expose changes for debugging. Offline simulation sends no equipment commands and plays no audio.
 
 The function-test panel runs the same isolated assertions as Node CI. Tests never mutate the interactive equipment. The page automatically runs them at startup and can rerun on demand.
 
@@ -35,7 +56,7 @@ The native-resolution watch now includes state-driven reactor rotation and power
 
 ## Expanded development laboratory
 
-The bench includes four selectable lock faces, warning screens, native hold-to-confirm controls, swipe navigation, configurable favorites, era accents, ambient dimming, local lighting previews, resizable columns, a simulated Attenuator, API explorer, transport fault injection, watch/pack state comparison and session recording/replay. See [laboratory scope and limitations](docs/LAB.md). Configuration writes are intentionally disabled; all transport is local simulation.
+The bench includes four selectable lock faces, warning screens, native hold-to-confirm controls, swipe navigation, configurable favorites, era accents, ambient dimming, local lighting previews, resizable columns, a simulated Attenuator, API explorer, transport fault injection, watch/pack state comparison and session recording/replay. See [laboratory scope and limitations](docs/LAB.md). Persistent equipment configuration writes are disabled. The lab defaults to offline simulation.
 
 ## Quick start (offline)
 
@@ -47,7 +68,7 @@ cd ProtonLink
 python -m http.server 8080
 ```
 
-Open http://localhost:8080/simulator/. No pack, watch, internet connection, credentials or software installation beyond a browser (and optional Python server) is required. Hold the face for two seconds, release, then swipe left within five seconds. Select a command-center tile. The simulator updates local state only; it never sends commands to equipment. Use the external scenario selector to inject telemetry. Music is represented by state, not audio playback.
+Open http://localhost:8080/simulator/. No pack, watch, internet connection, credentials or software installation beyond a browser (and optional Python server) is required. Hold the face for two seconds, release, then swipe left within five seconds. On the default Gen 1 profile, unlocking opens Industrial Control. The simulator updates local state only; it never sends commands to equipment. Use the external scenario selector to inject telemetry. Music is represented by state, not audio playback.
 
 ## Hardware target
 
@@ -83,23 +104,7 @@ At connection: fetch status, discover supported endpoints via OpenAPI when avail
 
 ## Application organization
 
-| Screen | Role | Status |
-|---|---|---|
-| Field Lock | Read-only clock, gauge, link, music, alarms | Simulated |
-| Command Center | Large shortcut tiles | Simulated |
-| Pack | Power, theme, stream, reported power | Simulated |
-| Music | Play/stop, pause/resume, skip, repeat, shuffle | Simulated |
-| Library | Track selection; configured names planned | Simulated |
-| Mixer | Master, effects, music, mute | Simulated |
-| Streams | Stream selector; capability filtering planned | Simulated |
-| Themes | 1984, 1989, 2021, 2024 | Simulated |
-| Effects | Smoke, vibration, direction, vent | Simulated; guarded |
-| Diagnostics | Pack/wand, cable, cyclotron, firing, alarm state | Simulated |
-| Presets | Coordinated changes with explicit review | Planned |
-| Workshop | Lighting, pack, wand and Attenuator configuration | Planned |
-| Settings | Network, favorites, face, lock, voice | Planned |
-
-Everyday screens are reachable via direct shortcuts; horizontal swipe navigation is planned beyond the unlock gesture. Secondary pages should have a back action; the current prototype uses Home, Music and Pack shortcuts instead. Reserve header/content/footer regions and use vertical scrolling for lists; no controls may overlap navigation. Target large touch areas and test long labels at native resolution.
+Industrial Control is the Gen 1 landing screen. Tap the status row for subsystem menus or the track name for the library. Tap the four lights for the PKE monitor, or hold them to engage Field Lock. The bench also provides a mixer, diagnostics, field setup and a lighting workshop preview. The mock profiles expose additional controls for development.
 
 ### Field Lock
 
@@ -109,11 +114,11 @@ Display real reported states, not fictional sensor readings. Decorative waveform
 
 ### Music and audio
 
-The mixer supports tapping, dragging and keyboard control on all three faders, plus existing +/- buttons. Targets update immediately and settle for 600 ms after the last adjustment (and after release). Master sends one absolute command; music and effects send only the required 5% increments, reconciling between steps. A failed/uncertain delivery cancels that batch rather than blindly retrying. Field Lock, disconnect and reset cancel queued edits. The archived upstream pack Configuration.h defines 5% increments for all three channels; actual installed firmware remains to be verified.
+The mixer supports tapping, dragging and keyboard control on all three faders, plus existing +/- buttons. Targets update immediately and settle for 600 ms after the last adjustment (and after release). The simulator models an absolute master command. The live bridge steps master volume toward the target; music and effects send only the required 5% increments, reconciling between steps. A failed/uncertain delivery cancels that batch rather than blindly retrying. Field Lock, disconnect and reset cancel queued edits. The archived upstream pack Configuration.h defines 5% increments for all three channels; actual installed firmware remains to be verified.
 
 Music plays from the existing equipment, not the watch. Track IDs are supplied by the gateway, potentially starting at 500 rather than 1. Compute display ordinal from musicStart; never send the ordinal as a raw API ID. Use configured songList names when available and fall back to numbered tracks.
 
-The start/stop and pause/resume endpoints are toggles. Read fresh status before toggling, skip the command if the desired state is already reached, serialize operations, verify the result, and never blindly retry after a timeout. Master volume supports absolute values; music/effects use incremental commands. Present step controls and reconcile reported values instead of pretending that arbitrary slider positions are supported.
+The start/stop and pause/resume endpoints are toggles. Read fresh status before toggling, skip the command if the desired state is already reached, serialize operations, verify the result, and never blindly retry after a timeout. Live volume controls reconcile incremental commands against reported levels. Present step controls and reconcile reported values instead of pretending that arbitrary slider positions are supported.
 
 ### Pack and effects
 
@@ -146,7 +151,7 @@ ProtonLink/
   .gitignore
 ```
 
-Native firmware directories are intentionally not represented as implemented code yet. The simulator is a separate transport-free model to prevent accidental hardware control. A real adapter will implement a common command interface later.
+Native firmware directories are intentionally not represented as implemented code yet. The offline model and the optional live bridge use separate transports.
 
 ## Development and tests
 
@@ -156,7 +161,7 @@ Manual acceptance checklist: locked taps do not mutate equipment; early release 
 
 ## Roadmap
 
-See [roadmap](docs/ROADMAP.md). The first release is a simulator/design baseline. Physical validation is deferred until the watch is available and the owner chooses to power the pack.
+See [roadmap](docs/ROADMAP.md). The first release is a simulator/design baseline. Native watch validation and per-revision command testing remain open.
 
 ## Branding and attribution
 
@@ -188,7 +193,7 @@ Use Development Tools → Track library or Music → Library → Manage names on
 
 ## Industrial Quick Control
 
-Settings → Main screen → Industrial Quick Control. Three themed horizontal volume adjusters, guarded START/STOP/VENT, status area opens menu, tap lights toggles PKE, hold lights for 1.5 seconds engages Field Lock. See [Quick Control](docs/QUICK_CONTROL.md).
+Gen 1 opens Industrial Quick Control on unlock. Other profiles can select it under Settings → Main screen. Three themed horizontal volume adjusters, guarded START/STOP/VENT, status area opens menu, tap lights toggles PKE, hold lights for 1.5 seconds engages Field Lock. See [Quick Control](docs/QUICK_CONTROL.md).
 
 Industrial Quick Control also includes an auxiliary transport module with named track readout, start/stop, pause/resume, previous/next and direct track library access.
 
@@ -202,4 +207,4 @@ Batch 2 adds field setup, audio presets, favorites, playlists and local pack pro
 Batch 3 adds display finishes, adaptive telemetry-driven animations, startup, ambient mode, local session statistics and optional virtual hardware; see [visual identity](docs/IMMERSION.md).
 
 
-Experimental local read-only bridge: [live integration](docs/LIVE_INTEGRATION.md). Simulation remains the default.
+Local bridge with read-only and opt-in command modes: [live integration](docs/LIVE_INTEGRATION.md). Simulation remains the default.
