@@ -70,7 +70,8 @@ static void refresh(lv_timer_t *timer)
                 lv_label_set_text_fmt(level_labels[i],"%d%%",v[i]);
             }
         }
-        lv_label_set_text(play_label,s.playing ? "STOP" : "PLAY");
+        lv_label_set_text(play_label,s.playing ? "STOP" : "START");
+        lv_obj_set_style_text_color(buttons[PL_PLAY_STOP],lv_color_hex(s.playing?0xe86b57:0x8bd89f),0);
         lv_label_set_text(pause_label,s.paused ? "RESUME" : "PAUSE");
     } else {
         lv_label_set_text(telemetry_label,"LINK LOST");
@@ -81,7 +82,7 @@ static void refresh(lv_timer_t *timer)
             lv_slider_set_value(levels[i],0,LV_ANIM_OFF);
             lv_label_set_text(level_labels[i],"--");
         }
-        lv_label_set_text(play_label,"PLAY");
+        lv_label_set_text(play_label,"START");
         lv_label_set_text(pause_label,"PAUSE");
     }
     for (int i=0;i<3;i++) {
@@ -171,7 +172,7 @@ void app_main(void)
     for(int i=0;i<3;i++) {
         lv_obj_t *panel=lv_obj_create(screen);
         lv_obj_remove_flag(panel,LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_size(panel,386,80);
+        lv_obj_set_size(panel,386,76);
         lv_obj_set_style_pad_all(panel,0,0);
         lv_obj_set_style_bg_color(panel,lv_color_hex(0x1b2223),0);
         lv_obj_set_style_bg_grad_color(panel,lv_color_hex(0x353f40),0);
@@ -209,8 +210,8 @@ void app_main(void)
         lv_obj_set_style_radius(levels[i],2,LV_PART_INDICATOR);
         lv_obj_set_style_bg_color(levels[i],lv_color_hex(0x8b9897),LV_PART_KNOB);
         lv_obj_set_style_radius(levels[i],3,LV_PART_KNOB);
-        lv_obj_set_style_pad_left(levels[i],-3,LV_PART_KNOB);
-        lv_obj_set_style_pad_right(levels[i],-3,LV_PART_KNOB);
+        lv_obj_set_style_pad_left(levels[i],0,LV_PART_KNOB);
+        lv_obj_set_style_pad_right(levels[i],0,LV_PART_KNOB);
         lv_obj_set_style_pad_top(levels[i],5,LV_PART_KNOB);
         lv_obj_set_style_pad_bottom(levels[i],5,LV_PART_KNOB);
         lv_obj_add_event_cb(levels[i],slider_event,LV_EVENT_ALL,(void *)(intptr_t)i);
@@ -219,7 +220,7 @@ void app_main(void)
             lv_obj_t *mark=lv_obj_create(panel);
             lv_obj_remove_style_all(mark);
             lv_obj_set_size(mark,1,4);
-            lv_obj_set_pos(mark,27+33*tick,73);
+            lv_obj_set_pos(mark,27+33*tick,69);
             lv_obj_set_style_bg_color(mark,lv_color_hex(0x78837d),0);
             lv_obj_set_style_bg_opa(mark,LV_OPA_COVER,0);
         }
