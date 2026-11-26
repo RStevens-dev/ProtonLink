@@ -112,3 +112,22 @@ test('legacy year changes require idle equipment',()=>{
  assert.equal(commandPath(idle,year),'/pack/theme/1989');
  for(const change of [{pack:true},{wandPower:true},{ramping:true},{firing:true}])assert.throws(()=>commandPath({...idle,...change},year));
 });
+
+import {decodeStatus,capabilitySummary} from './live.js';
+import {readFileSync} from 'node:fs';
+test('legacy and extended status preserve unknown and authoritative fields',()=>{
+ const fixture=JSON.parse(readFileSync(new URL('../tests/fixtures/legacy-gen1-status.json',import.meta.url),'utf8'));
+ const legacy=decodeStatus(fixture);
+ assert.equal(legacy.crossedStreams,null);
+ assert.equal(legacy.canChangeStream,null);
+ const extended=decodeStatus({...fixture,crossedStreams:true,lockout:true,canChangeStream:false,packTempC:32,packTempF:89.6,temperature:'Future state'});
+ assert.equal(extended.crossedStreams,true);
+ assert.equal(extended.lockout,true);
+ assert.equal(extended.packTempC,32);
+ assert.equal(extended.packTempF,89.6);
+ assert.equal(extended.temperature,'Unknown');
+ assert.throws(()=>commandPath(extended,{type:'vent',confirmed:true}));
+ assert.throws(()=>commandPath({...legacy,canChangeStream:false},{type:'stream',value:'Stasis'}));
+ assert.equal(commandPath({...legacy,canChangeStream:true},{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
+ assert.equal(capabilitySummary({audioCorrupt:true,audioOutdated:false},null).audioCorrupt,true);
+});
