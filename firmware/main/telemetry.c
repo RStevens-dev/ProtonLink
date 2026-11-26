@@ -39,6 +39,19 @@ bool protonlink_decode(const char *json, protonlink_status_t *out)
     if (valid) {
         read_text(root, "temperature", s.temperature, sizeof(s.temperature));
         read_text(root, "cyclotron", s.cyclotron, sizeof(s.cyclotron));
+        const cJSON *playing = cJSON_GetObjectItemCaseSensitive(root, "musicPlaying");
+        const cJSON *paused = cJSON_GetObjectItemCaseSensitive(root, "musicPaused");
+        s.music_known = cJSON_IsBool(playing) && cJSON_IsBool(paused);
+        s.playing = cJSON_IsTrue(playing);
+        s.paused = cJSON_IsTrue(paused);
+        const cJSON *track = cJSON_GetObjectItemCaseSensitive(root, "musicCurrent");
+        s.track = cJSON_IsNumber(track) && track->valuedouble >= 0 && track->valuedouble <= 65535 && track->valuedouble == track->valueint ? track->valueint : -1;
+        const cJSON *ramp = cJSON_GetObjectItemCaseSensitive(root, "ramping");
+        s.transition_known = cJSON_IsBool(ramp);
+        s.ramping = cJSON_IsTrue(ramp);
+        s.lockout = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "lockout"));
+        const cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "mode");
+        s.legacy_superhero = cJSON_IsString(mode) && !strcmp(mode->valuestring, "Super Hero");
         s.online = true;
         *out = s;
     }
