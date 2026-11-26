@@ -33,6 +33,20 @@ static void touch(int x,int y,bool pressed,unsigned ms)
 {
     touch_point=(lv_point_t){x,y}; touch_pressed=pressed; advance(ms);
 }
+static lv_obj_t *find_visible_button(lv_obj_t *obj,const char *name)
+{
+    if(lv_obj_has_flag(obj,LV_OBJ_FLAG_HIDDEN)) return NULL;
+    if(lv_obj_check_type(obj,&lv_button_class)) {
+        lv_obj_t *child=lv_obj_get_child(obj,0);
+        if(child && lv_obj_check_type(child,&lv_label_class) &&
+           !strcmp(lv_label_get_text(child),name)) return obj;
+    }
+    for(uint32_t i=0;i<lv_obj_get_child_count(obj);i++) {
+        lv_obj_t *found=find_visible_button(lv_obj_get_child(obj,i),name);
+        if(found) return found;
+    }
+    return NULL;
+}
 static int run_smoke(void)
 {
     lv_init();
@@ -50,6 +64,30 @@ static int run_smoke(void)
     touch(205,250,true,2200); touch(205,250,false,100);
     touch(300,250,true,100); touch(160,250,true,100); touch(160,250,false,300);
     if(!pl_is_unlocked()) { fprintf(stderr,"Field Lock hold/swipe failed\n"); return 1; }
+    /* Quick Control is visible. Resolve the actual pack button positions by
+     * their labels so the pointer test survives layout adjustments. */
+    const char *names[]={"START\nHOLD","VENT\nHOLD","STOP\nHOLD"};
+    protonlink_status_t sample;
+    for(int i=0;i<3;i++) {
+        lv_obj_t *button=find_visible_button(lv_screen_active(),names[i]);
+        if(!button) { fprintf(stderr,"Missing pack button %d\n",i); return 1; }
+        lv_area_t area; lv_obj_get_coords(button,&area);
+        int x=(area.x1+area.x2)/2,y=(area.y1+area.y2)/2;
+        touch(x,y,true,1200); touch(x,y,false,350);
+        if(!protonlink_snapshot(&sample)) return 1;
+        if((i==0 && !sample.pack_on) ||
+           (i==1 && strcmp(sample.temperature,"Venting")) ||
+           (i==2 && sample.pack_on)) {
+            fprintf(stderr,"Pack hold command %d failed\n",i); return 1;
+        }
+        if(i==1) {
+            advance(4500);
+            if(!protonlink_snapshot(&sample) || strcmp(sample.temperature,"Normal")) {
+                fprintf(stderr,"Vent did not recover\n"); return 1;
+            }
+        }
+    }
+    puts("Pack START / VENT / STOP pointer regression passed");
     mock_scenario(0); advance(300);
     if(pl_is_unlocked()) { fprintf(stderr,"Link loss did not lock controls\n"); return 1; }
     mock_scenario(2); advance(300);
