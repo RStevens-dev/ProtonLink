@@ -87,3 +87,13 @@ test('legacy Super Hero power uses explicit on/off routes and preserves transiti
   }
   assert.throws(()=>commandPath(state,{...power,confirmed:false}));
 });
+
+test('legacy master steps and stream eligibility use observed state', () => {
+  const s={...initial(),pack:true,mode:'Super Hero',ramping:null,vgMode:null,master:40};
+  assert.equal(commandPath(s,{type:'volume',channel:'master',value:45,incremental:true}),'/volume/master/up');
+  assert.equal(commandPath(s,{type:'volume',channel:'master',value:35,incremental:true}),'/volume/master/down');
+  assert.equal(commandPath(s,{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
+  for(const change of [{ramping:true},{vgMode:false},{firing:true},{pack:false}]) {
+    assert.throws(()=>commandPath({...s,...change},{type:'stream',value:'Stasis'}));
+  }
+});
