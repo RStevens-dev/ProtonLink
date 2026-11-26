@@ -1,4 +1,8 @@
 #include "telemetry.h"
+#include "control.h"
+#include <stdatomic.h>
+#include <stdio.h>
+#include "freertos/queue.h"
 #include <string.h>
 #include "sdkconfig.h"
 #include "esp_event.h"
@@ -16,13 +20,17 @@ static SemaphoreHandle_t mutex;
 static protonlink_status_t latest;
 static int64_t received_us;
 static const char *TAG = "protonlink";
-static volatile bool connected;
+static atomic_bool connected;
+static atomic_bool unlocked;
+static QueueHandle_t requests;
+static atomic_uint lock_epoch;
+typedef struct { pl_action_t action; unsigned epoch; protonlink_status_t before; } command_request_t;
 static char response[MAX_STATUS + 1];
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg; (void)data;
-    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) connected = false;
+    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) { connected = false; pl_set_unlocked(false); }
     if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) connected = true;
 }
 static bool fetch_status(protonlink_status_t *out)
@@ -54,6 +62,49 @@ static bool fetch_status(protonlink_status_t *out)
     esp_http_client_cleanup(client);
     return ok;
 }
+bool pl_is_unlocked(void) { return atomic_load(&unlocked); }
+void pl_set_unlocked(bool value)
+{
+#ifdef CONFIG_PROTONLINK_ENABLE_CONTROL
+    if (value && connected) { atomic_store(&unlocked, true); return; }
+#else
+    (void)value;
+#endif
+    atomic_store(&unlocked, false);
+    atomic_fetch_add(&lock_epoch, 1);
+}
+bool pl_request(pl_action_t action)
+{
+    command_request_t request = {.action=action,.epoch=atomic_load(&lock_epoch)};
+    if (!requests || !pl_is_unlocked() || !protonlink_snapshot(&request.before) ||
+        !pl_command_path(action, &request.before)) return false;
+    return xQueueSend(requests, &request, 0) == pdTRUE;
+}
+static void execute_request(command_request_t *req)
+{
+    protonlink_status_t fresh;
+    if (!pl_is_unlocked() || req->epoch != atomic_load(&lock_epoch) ||
+        !fetch_status(&fresh)) return;
+    const char *path = pl_command_path(req->action, &fresh);
+    if (!path || !pl_is_unlocked() || req->epoch != atomic_load(&lock_epoch) || !connected) return;
+    if ((req->action == PL_PLAY_STOP || req->action == PL_PAUSE_RESUME) &&
+        (fresh.playing != req->before.playing || fresh.paused != req->before.paused)) return;
+    const char *base = CONFIG_PROTONLINK_STATUS_URL;
+    size_t n = strlen(base);
+    if (n < 7 || strcmp(base+n-7, "/status") || strncmp(base, "http://", 7)) return;
+    char url[256];
+    if (n-7+strlen(path) >= sizeof(url)) return;
+    snprintf(url,sizeof(url),"%.*s%s",(int)(n-7),base,path);
+    esp_http_client_config_t cfg = {.url=url,.timeout_ms=2500,.disable_auto_redirect=true,.method=HTTP_METHOD_PUT};
+    esp_http_client_handle_t client=esp_http_client_init(&cfg);
+    if (!client) return;
+    if (pl_is_unlocked() && connected && req->epoch == atomic_load(&lock_epoch))
+        esp_http_client_perform(client); /* Never retry a potentially executed toggle. */
+    esp_http_client_cleanup(client);
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    received_us=0;
+    xSemaphoreGive(mutex);
+}
 static void poll_task(void *arg)
 {
     (void)arg;
@@ -61,6 +112,8 @@ static void poll_task(void *arg)
         if (!connected) {
             esp_wifi_connect();
         } else {
+            command_request_t request;
+            if (requests && xQueueReceive(requests,&request,0)==pdTRUE) execute_request(&request);
             protonlink_status_t sample;
             if (fetch_status(&sample)) {
                 xSemaphoreTake(mutex, portMAX_DELAY);
@@ -71,6 +124,7 @@ static void poll_task(void *arg)
                 xSemaphoreTake(mutex, portMAX_DELAY);
                 received_us = 0;
                 xSemaphoreGive(mutex);
+                pl_set_unlocked(false);
             }
         }
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -93,6 +147,7 @@ void protonlink_network_start(void)
     }
     mutex = xSemaphoreCreateMutex();
     if (!mutex) return;
+    requests = xQueueCreate(1,sizeof(command_request_t));
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
