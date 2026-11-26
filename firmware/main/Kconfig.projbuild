@@ -8,4 +8,7 @@ config PROTONLINK_WIFI_PASSWORD
 config PROTONLINK_STATUS_URL
     string "Attenuator status URL"
     default "http://192.168.1.2/status"
+config PROTONLINK_ENABLE_CONTROL
+    bool "Enable experimental GPStar control"
+    default n
 endmenu
