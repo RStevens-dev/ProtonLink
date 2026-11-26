@@ -21,7 +21,7 @@ Run `idf.py menuconfig` and open **ProtonLink connection** to enter the Attenuat
 
 ## Experimental control (disabled by default)
 
-Enable **Enable experimental GPStar control** in menuconfig only on a controlled test rig. Hold the lock button to unlock; tap to lock. Hold START, STOP or VENT to request a pack action. Drag a volume slider and release to request its target. The network task uses legacy volume step routes for all three channels, checking fresh reported volume after each successful HTTP request. It stops at the target, on overshoot, no observed progress, lock/link loss, rejection, or after 20 steps; the displayed value returns to reported telemetry. Only one request is active at a time. Music transport uses legacy routes. Commands run through a one-entry queue, fresh status check, and lock epoch; the next status sample is the authoritative display. A request already sent cannot be recalled. No automatic retries. Command acknowledgement and result display still need implementation; controls are not hardware validated. Do not enable experimental control for field use.
+Enable **Enable experimental GPStar control** in menuconfig only on a controlled test rig. From Field Lock, hold the display for two seconds, release, then swipe left within five seconds. Hold the four cyclotron lights for 1.5 seconds to lock; tap them to toggle PKE Monitor. Hold START, STOP or VENT for one second to request a pack action. Drag a volume slider and release; the request is eligible after 600 ms without another adjustment. The network task uses legacy volume step routes for all three channels, checking fresh reported volume after each successful HTTP request. It stops at the target, on overshoot, no observed progress, lock/link loss, rejection, or after 20 steps; the displayed value returns to reported telemetry. Only one request is active at a time. Music transport uses legacy routes. Commands run through a one-entry queue, fresh status check, and lock epoch; the next status sample is the authoritative display. A request already sent cannot be recalled. No automatic retries. Command acknowledgement and result display still need implementation; controls are not hardware validated. Do not enable experimental control for field use.
 
 ## Merge gates and next steps
 
@@ -34,7 +34,7 @@ Enable **Enable experimental GPStar control** in menuconfig only on a controlled
 Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main/examples/esp-idf/02_lvgl_demo_v9
 
 ## Visual parity
-The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`: industrial metal panels, red LINK wordmark, three channel colors, numeric readouts, fader tracks, scale marks, green track readout and hazard separator. Native LVGL uses a simplified continuous indicator and rectangular hazard marks rather than the browser's segmented LEDs and diagonal texture. Track titles, LIST, PKE face navigation and exact browser hold/swipe timing remain to be ported. The physical layout requires display/touch validation.
+The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`: industrial metal panels, red LINK wordmark, three channel colors, numeric readouts, fader tracks, scale marks, green track readout and hazard separator. Native LVGL now uses segmented indicators, gradient handles, diagonal hazard marks, a transport panel, and switch lamps. It implements Field Lock gestures, PKE monitor navigation and a paginated track database using the reported musicStart/musicEnd range. The radar is a simplified visualization; native track names currently use the browser's ordinal fallback, not imported or synchronized titles. Full subsystem menus, configurable channel order and remaining face variants are not yet ported. Visual and physical touch parity require manual validation.
 
 ## Native macOS simulator
 
@@ -54,7 +54,7 @@ cmake --build build-desktop --parallel
 ./build-desktop/ProtonLinkDesktop
 ```
 
-Hold the lock button using the mouse to enable simulated controls; drag sliders and release. Press 0 for link loss, 1 for normal link, 2 for firing, 3 for critical/lockout, Escape to quit. Simulated vent lasts four seconds. The desktop does not model network latency or physical display/touch/battery characteristics.
+Hold the Field Lock screen for two seconds, release, then swipe left with the mouse within five seconds. Tap the four dots to toggle PKE Monitor; hold them to lock. Drag sliders and release. Press 0 for link loss, 1 for normal link, 2 for firing, 3 for critical/lockout, Escape to quit. Simulated vent lasts four seconds. The desktop does not model network latency or physical display/touch/battery characteristics.
 
 SDL2 is fetched at build time and linked statically. CI tests both the original executable and the signed, extracted ZIP. For a separate bounded LVGL pool test:
 
@@ -64,4 +64,4 @@ cmake --build build-bounded --parallel
 ./build-bounded/ProtonLinkDesktop --smoke
 ```
 
-The 2 MiB pool is a provisional UI regression budget, not a model of total ESP32 memory or DMA requirements. Smoke testing exercises simulated telemetry states and reports LVGL pool usage; it does not replace physical touch and network tests. Watch startup logs report internal RAM and PSRAM free, largest free block and historical minimum free at display/UI/network initialization. Confirm actual memory budgets on hardware.
+The 2 MiB pool is a provisional UI regression budget, not a model of total ESP32 memory or DMA requirements. Smoke testing exercises LVGL pointer hold/swipe, link-loss locking and simulated telemetry states and reports LVGL pool usage; it does not replace physical touch and network tests. Watch startup logs report internal RAM and PSRAM free, largest free block and historical minimum free at display/UI/network initialization. Confirm actual memory budgets on hardware.
