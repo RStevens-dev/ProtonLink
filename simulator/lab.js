@@ -1,7 +1,7 @@
 // Browser-only transport laboratory. No fetch, WebSocket or hardware connection.
 import {status,exchange,route} from './protocol.js';
 export const profiles={legacy:{label:"Gen 1 conservative",streams:["Proton","Stasis","Slime","Meson"],openapi:false},mock:{label:"Upstream mock capability set",streams:["Proton","Stasis","Slime","Meson","Spectral"],openapi:true},extended:{label:"All documented route candidates",streams:["Proton","Stasis","Slime","Meson","Spectral","Halloween","Christmas","Custom"],openapi:true}};
-export const defaults=()=>({latency:0,loss:0,gateway:true,gatewayPower:true,fault:"none",profile:"mock"});
+export const defaults=()=>({latency:0,loss:0,gateway:true,gatewayPower:true,fault:"none",profile:"legacy"});
 export function diff(a,b){return Object.keys({...a,...b}).filter(k=>JSON.stringify(a[k])!==JSON.stringify(b[k])).map(k=>({field:k,watch:a[k],pack:b[k]}))}
 const event=(kind,direction,summary,body=null)=>({kind,direction,summary,body});
 export function simulate(s,a,opts={},random=Math.random){

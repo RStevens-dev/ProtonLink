@@ -1,3 +1,4 @@
+import {decodeStatus,capabilitySummary,ReadOnlyTransport} from './live.js';
 import {normalizeVisual,equipmentState,illumination,activeFace,scanRate,eventChanges,emptyStats,accumulate,hardwareMarkup} from './immersion.js';
 import {normalizeField,gesturePage,selectTracks,readiness,reduceAudio,equipmentSnapshot,equipmentPlan} from './field.js';
 import {fresh,linked,classify,commandGuard,backup,parseBackup,scenarios,runScenario} from './reliability.js';
@@ -122,5 +123,14 @@ cases.push(
  ["Event overlays only reflect observed changes",()=>{const s=open();check(eventChanges(s,{...s,pack:true,track:503}).join()==="PACK ACTIVATED,AUDIO TRACK 503"&&eventChanges(s,{...s,online:false,pack:true}).join()==="LINK LOST","events")}],
  ["Session statistics separate observed and unknown time",()=>{const s={...open(),pack:true,firing:true,level:3};let n=accumulate(emptyStats(),s,{...s,temperature:"Venting"},1000);n=accumulate(n,s,{...s,online:false},2000);check(n.packMs===1000&&n.firingMs===1000&&n.vents===1&&n.levels[2]===1000&&n.unknownMs===2000,"stats")}],
  ["Hardware previews only draw selected optional components",()=>{check(!hardwareMarkup(open(),{}).includes("N-FILTER")&&hardwareMarkup(open(),{filter:true}).includes("N-FILTER"),"hardware")}]
+);
+cases.push(
+ ["Live status mapping uses reported equipment state",()=>{const raw=status({...open(),pack:true,level:4,track:503});const x=decodeStatus(raw);check(x.pack&&x.level===4&&x.track===503&&x.locked,"mapping")}],
+ ["Empty and malformed status rejected",()=>{for(const x of [{},null,{...status(open()),volMaster:900}]){let rejected=false;try{decodeStatus(x)}catch{rejected=true}check(rejected,"invalid accepted")}}],
+ ["Live capabilities do not invent OpenAPI",()=>{check(capabilitySummary({buildDate:"test"},null).openapi===null,"capability")}]
+);
+cases.push(
+ ["Legacy Gen 1 physical sample accepts optional omissions",()=>{const x=decodeStatus({"mode":"Super Hero","modeID":1,"theme":"1984","themeID":2,"switch":"Ready","pack":"Powered","power":"1","safety":"Safety Off","wand":"Connected","wandPower":"Idle","wandMode":"Proton Stream","firing":"Idle","cable":"Connected","cyclotron":"Normal","cyclotronLid":true,"temperature":"Normal","musicPlaying":false,"musicPaused":false,"musicCurrent":500,"musicStart":500,"musicEnd":514,"volMaster":10,"volEffects":100,"volMusic":100,"battVoltage":5.26,"wandAmps":0,"apClients":1,"wsClients":0});check(x.mode==="Super Hero"&&x.pack&&x.track===500&&x.last===514&&x.master===10&&x.battVoltage===5.26&&x.muted===null&&x.direction===null&&x.ramping===null&&x.smoke===null,"legacy mapping")}],
+ ["Reported false remains distinct from unreported",()=>{const x=decodeStatus({...{"mode":"Super Hero","modeID":1,"theme":"1984","themeID":2,"switch":"Ready","pack":"Powered","power":"1","safety":"Safety Off","wand":"Connected","wandPower":"Idle","wandMode":"Proton Stream","firing":"Idle","cable":"Connected","cyclotron":"Normal","cyclotronLid":true,"temperature":"Normal","musicPlaying":false,"musicPaused":false,"musicCurrent":500,"musicStart":500,"musicEnd":514,"volMaster":10,"volEffects":100,"volMusic":100,"battVoltage":5.26,"wandAmps":0,"apClients":1,"wsClients":0},volMuted:false});check(x.muted===false&&x.loop===null,"unknown distinction")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}
