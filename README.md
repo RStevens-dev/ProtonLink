@@ -14,7 +14,7 @@ A wearable field instrument, not a miniature desktop dashboard: glanceable visua
 
 [Open the ProtonLink test bench](https://rstevens-dev.github.io/ProtonLink/) (available after GitHub Pages is enabled and the deployment succeeds).
 
-The browser bench pairs a virtual watch with a virtual pack and wand in one responsive layout. Both read the same state model. Watch commands update the pack; physical pack controls update the watch even while Field Lock is active. Offline mode hides watch telemetry and blocks commands while the virtual pack remains operable. Scenario injection covers standby, active, firing, warning, critical, venting and disconnected conditions. The event log and simulated /status JSON expose changes for debugging. No network commands or audio playback occur.
+The browser bench pairs a virtual watch with a virtual pack and wand in one responsive layout. Both read the same state model. Watch commands update the pack; physical pack controls update the watch even while Field Lock is active. Offline mode hides watch telemetry and blocks commands while the virtual pack remains operable. Scenario injection covers standby, active, firing, warning, critical, venting and disconnected conditions. The full-width shared communications console shows timestamped simulated HTTP requests, status-code responses, JSON payloads and /ws text frames, with filters, pause/resume, clear, export and optional polling. Physical controls generate push events rather than artificial watch requests. The event log and simulated /status JSON expose changes for debugging. No network commands or audio playback occur.
 
 The function-test panel runs the same isolated assertions as Node CI. Tests never mutate the interactive equipment. The page automatically runs them at startup and can rerun on demand.
 
@@ -126,6 +126,7 @@ ProtonLink/
   simulator/model.js
   simulator/model.test.js
   simulator/cases.js
+  simulator/protocol.js
   .github/workflows/pages.yml
   assets/branding/README.md
   .gitignore

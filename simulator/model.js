@@ -38,7 +38,7 @@ export function dispatch(s,a) {
  case "mute":return {...s,muted:!s.muted};
  case "loop":return {...s,loop:!s.loop};
  case "shuffle":return {...s,shuffle:!s.shuffle};
- case "theme":return normal&&themes.includes(a.value)?{...s,theme:a.value}:s;
+ case "theme":return normal&&!s.pack&&themes.includes(a.value)?{...s,theme:a.value}:s;
  case "stream":return normal&&streams.includes(a.value)?{...s,stream:a.value}:s;
  case "smoke":return normal&&(!a.value||a.confirmed)?{...s,smoke:!!a.value}:s;
  case "vibration":return {...s,vibration:!s.vibration};

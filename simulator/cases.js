@@ -1,4 +1,5 @@
 import {initial,dispatch} from './model.js';
+import {exchange,route,connect,status} from './protocol.js';
 const open=()=>dispatch(initial(),{type:'unlock'});
 const check=(condition,message)=>{if(!condition)throw new Error(message)};
 export const cases=[
@@ -18,4 +19,13 @@ export const cases=[
  ['Physical wand level is reflected in shared state',()=>{let s=dispatch(initial(),{type:'physical',control:'level',value:5});check(s.level===5&&s.locked,'level mismatch')}],
  ['Firing requires connected wand and powered pack',()=>{let s=initial();check(dispatch(s,{type:'physical',control:'firing',value:true})===s,'firing in standby');s=dispatch(s,{type:'physical',control:'power',value:true});check(dispatch(s,{type:'physical',control:'firing',value:true}).firing,'firing denied')}]
 ];
+cases.push(
+ ['Protocol uses documented music toggle and acknowledgement',()=>{const x=exchange(open(),{type:"play"});check(x.events.some(e=>e.summary==="PUT /music/startstop"),"missing route");check(x.events.some(e=>e.body?.status==="success"),"missing ack");check(x.events.some(e=>e.kind==="WS"&&e.body.musicPlaying===true),"missing telemetry")}],
+ ['Protocol does not repeat music toggle',()=>{const s=exchange(open(),{type:"play"}).state;check(!exchange(s,{type:"play"}).events.some(e=>e.summary.startsWith("PUT")),"duplicate write")}],
+ ['Protocol uses raw track ID',()=>{check(route(open(),{type:"track",value:501})==="/music/select?track=501","wrong ID")}],
+ ['Protocol distinguishes incremental mixer routes',()=>{check(route(open(),{type:"volume",channel:"effects",value:85})==="/volume/effects/up","wrong effects route");check(route(open(),{type:"volume",channel:"master",value:85})==="/volume/master/set/85","wrong master route")}],
+ ['Locked protocol sends no HTTP requests',()=>{check(exchange(initial(),{type:"play"}).events.every(e=>e.kind==="LOCAL"),"traffic while locked")}],
+ ['Offline protocol does not invent response',()=>{const s={...initial(),online:false};check(!connect(s).some(e=>e.summary.includes("200 OK")||e.kind==="WS"),"false reply")}],
+ ['Theme changes blocked when powered',()=>{const s={...open(),pack:true};check(exchange(s,{type:"theme",value:"1989"}).state===s,"theme changed")}]
+);
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}
