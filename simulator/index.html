@@ -192,6 +192,7 @@ function availableStreams(){
 function supportsControl(type,value){
  if(type==="theme"){
   if(!liveMode)return cfg.profile!=="legacy";
+  if(livePrefs.pack?.prefsAvailable!==true||livePrefs.pack.esp32Pack!==true)return false;
   const path=route(s,{type,value});
   return Boolean(livePrefs.routes?.[path]?.put)&&!missingLiveRoutes.has(path);
  }
