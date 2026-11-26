@@ -13,6 +13,8 @@ typedef struct {
     bool lockout;
     bool legacy_superhero;
     int track;
+    int track_first;
+    int track_last;
     int master;
     int effects;
     int music;
