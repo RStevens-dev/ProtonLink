@@ -1,13 +1,15 @@
-# Live read-only integration
+# Connecting to equipment
 
-Run from a local checkout of feature/batch-4-live-readonly:
+Start the Python 3 bridge on a computer connected to the Attenuator’s network.
 
 ```sh
-python scripts/live_bridge.py --host YOUR_ATTENUATOR_HOSTNAME
+python3 scripts/live_bridge.py --host YOUR_ATTENUATOR_HOSTNAME
 ```
 
-Open http://127.0.0.1:8080/simulator/ on that computer. Connect to the same network as your Attenuator. In Equipment connection choose Connect read-only via local bridge. Hostname is a command-line argument, not committed or saved in public source. If mDNS is unavailable use the pack's local IPv4 address. Python 3 standard library only.
+Open http://127.0.0.1:8080/simulator/ and connect in the Equipment connection panel. The bridge resolves the supplied hostname or local IPv4 address at startup. The browser subscribes directly to that address at /ws. Each complete status frame updates the watch and equipment diagram. The bridge reads /status every two seconds, including when the browser or firmware cannot open the socket. Socket retries back off from half a second to fifteen seconds. Disconnecting returns to simulation and cancels retries.
 
-This first increment uses GET /status polling every two seconds and optional GET /config/device and /openapi.json. WebSocket is deferred until actual firmware samples are verified. No command forwarding, no generic proxy, no cross-origin access, loopback bind, fixed private IPv4 destination and GET allowlist. Simulator input is disabled during live mode; raw status is displayed separately. Strict required field mapping may reject older firmware; capture the raw response locally for review rather than substituting invented values. Real telemetry is not yet validated on hardware. Track names are session-local in this increment; no actual audio or writes. Return to simulation restores prior simulated state. Local bridge cannot be used directly from the HTTPS Pages site.
+Loss of authoritative HTTP telemetry locks controls. Recovery reads preferences again. Synchronized LED counts, custom spectral colors and brightness drive the diagnostic illustration. LED animation is illustrative. The gateway reports equipment state and configuration, not individual LED pixels.
 
-Upstream reference: https://github.com/gpstar81/GPStar-proton-pack/blob/main/docs/WEB_API_REFERENCE.md
+For hardware testing, the optional --enable-commands flag enables the existing allowlisted PUT routes. Live commands require a fresh status read, an unlocked watch, and the relevant equipment conditions. An acknowledged command triggers another status read for verification. Reconnection does not replay commands. Legacy firmware can omit state fields required to validate particular operations.
+
+[Upstream Attenuator implementation](https://github.com/gpstar81/GPStar-proton-pack/blob/main/source/Attenuator/include/Webhandler.h)

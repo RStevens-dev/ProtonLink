@@ -85,7 +85,7 @@ def handler_for(target, port, allowed_hosts, commands=False):
                     conn.close()
                 return
             if url.path == "/bridge/info":
-                return self.reply(200, json.dumps({"mode":"control" if commands else "read-only","transport":"http-polling"}).encode())
+                return self.reply(200, json.dumps({"mode":"control" if commands else "read-only","transport":"http-polling","websocket":f"ws://{target}:{port}/ws"}).encode())
             if url.path in ("/", "/simulator/"):
                 file = ROOT / "simulator/index.html"
             elif re.fullmatch(r"/simulator/[A-Za-z0-9_.-]+\.js", url.path):

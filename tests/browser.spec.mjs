@@ -12,3 +12,28 @@ test('display preferences, startup and observed session panel',async({page})=>{a
 test('live transport invokes native fetch with Window receiver',async({page})=>{await page.goto('http://127.0.0.1:8765/simulator/');await page.route('**/bridge/status',route=>route.fulfill({json:{pack:'Idle'}}));const result=await page.evaluate(async()=>{const native=window.fetch;window.fetch=function(...args){if(this!==window)throw new Error('Invalid fetch receiver');return native.apply(window,args)};try{const {ReadOnlyTransport}=await import('/simulator/live.js');return await new ReadOnlyTransport().get('status')}finally{window.fetch=native}});expect(result).toEqual({pack:'Idle'})});
 
 test('legacy physical status renders in read-only connection',async({page})=>{await page.goto('http://127.0.0.1:8765/simulator/');await page.route('**/bridge/info',r=>r.fulfill({json:{mode:'read-only'}}));await page.route('**/bridge/status',r=>r.fulfill({json:{"mode":"Super Hero","modeID":1,"theme":"1984","themeID":2,"switch":"Ready","pack":"Powered","power":"1","safety":"Safety Off","wand":"Connected","wandPower":"Idle","wandMode":"Proton Stream","firing":"Idle","cable":"Connected","cyclotron":"Normal","cyclotronLid":true,"temperature":"Normal","musicPlaying":false,"musicPaused":false,"musicCurrent":500,"musicStart":500,"musicEnd":514,"volMaster":10,"volEffects":100,"volMusic":100,"battVoltage":5.26,"wandAmps":0,"apClients":1,"wsClients":0}}));await page.route('**/bridge/config/device',r=>r.fulfill({json:{songList:'Theme'}}));await page.route('**/bridge/openapi.json',r=>r.fulfill({status:404}));await page.locator('[data-tab="connection"]').click();await page.locator('#connectReal').click();await expect(page.locator('#liveRaw')).toContainText('Super Hero');await expect(page.locator('#packData')).toContainText('5.26 V');await expect(page.locator('#packData')).toContainText('Unknown');await expect(page.locator('#connectionMode')).toContainText('READ ONLY');await expect(page.locator('#physical button').first()).toBeDisabled()});
+
+test('WebSocket reconnect updates equipment lights and stops on disconnect', async ({page}) => {
+  const {readFile} = await import('node:fs/promises');
+  const raw = JSON.parse(await readFile(new URL('./fixtures/legacy-gen1-status.json',import.meta.url)));
+  const peers = [];
+  await page.routeWebSocket('ws://127.0.0.1:8766/ws', socket => peers.push(socket));
+  await page.route('**/bridge/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    const json = path.endsWith('/info') ? {mode:'read-only',websocket:'ws://127.0.0.1:8766/ws'} :
+      path.endsWith('/status') ? raw : path.endsWith('/config/pack') ?
+      {prefsAvailable:true,ledCycLidCount:20} : {prefsAvailable:true};
+    return route.fulfill({json});
+  });
+  await page.goto('http://127.0.0.1:8765/simulator/');
+  await page.locator('[data-tab="connection"]').click();
+  await page.locator('#connectReal').click();
+  await expect(page.locator('.discovered-outer')).toHaveCount(20);
+  await expect.poll(()=>peers.length).toBe(1);
+  peers[0].close();
+  await expect.poll(()=>peers.length).toBe(2);
+  peers[1].send(JSON.stringify({...raw,pack:'Idle'}));
+  await expect(page.locator('.discovered-outer').first()).toHaveAttribute('fill','#533033');
+  await page.locator('#disconnectReal').click();
+  await expect(page.locator('#connectionMode')).toHaveText('SIMULATION');
+});
