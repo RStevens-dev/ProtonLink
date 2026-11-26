@@ -1,0 +1,11 @@
+menu "ProtonLink connection"
+config PROTONLINK_WIFI_SSID
+    string "Attenuator Wi-Fi SSID"
+    default ""
+config PROTONLINK_WIFI_PASSWORD
+    string "Attenuator Wi-Fi password"
+    default ""
+config PROTONLINK_STATUS_URL
+    string "Attenuator status URL"
+    default "http://192.168.1.2/status"
+endmenu
