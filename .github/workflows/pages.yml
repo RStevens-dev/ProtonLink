@@ -16,6 +16,7 @@ jobs:
           node-version: '22'
       - run: npm test
       - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js && node --check simulator/lab.js && node --check simulator/volume.js && node --check simulator/faces.js && node --check simulator/library.js && node --check simulator/quick.js
+      - run: python -m py_compile scripts/deploy_pages.py
       - name: Check browser module syntax
         run: |
           python -c "from pathlib import Path; s=Path('simulator/index.html').read_text(); Path('simulator/.check.mjs').write_text(s.split('<script type=\"module\">')[1].split('</script>')[0])"
@@ -46,33 +47,16 @@ jobs:
           if [ -f assets/branding/ProtonLink.png ]; then cp assets/branding/ProtonLink.png _site/branding.png; fi
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
+        id: upload
         with:
           path: _site
           name: github-pages-${{ github.run_attempt }}
           retention-days: 3
-      - name: Wait for uploaded Pages artifact to become visible
+      - name: Deploy uploaded artifact by ID
+        id: deployment
+        timeout-minutes: 12
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact_id }}
           ARTIFACT_NAME: github-pages-${{ github.run_attempt }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 18); do
-            if id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" --paginate --jq ".artifacts[] | select(.name == \"$ARTIFACT_NAME\" and .expired == false) | .id" 2>/tmp/pages-artifact-error); then
-              if [[ -n "$id" ]]; then
-                echo "Artifact $ARTIFACT_NAME visible: $id"
-                exit 0
-              fi
-            else
-              cat /tmp/pages-artifact-error
-            fi
-            echo "Artifact not yet visible ($attempt/18)"
-            sleep 5
-          done
-          echo "::error::Uploaded Pages artifact is not visible to the Actions API. Check actions: read permission and GitHub service status."
-          exit 1
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
-        with:
-          artifact_name: github-pages-${{ github.run_attempt }}
+        run: python scripts/deploy_pages.py
