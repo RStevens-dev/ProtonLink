@@ -12,6 +12,18 @@ export function dispatch(s,a) {
   if(!["standby","active","firing","warning","critical","venting"].includes(k))return s;
   return {...s,online:true,pack:k!=="standby",firing:k==="firing",cyclotron:({firing:"Active",warning:"Warning",critical:"Critical",venting:"Recovery"})[k]||"Normal",temperature:k==="venting"?"Venting":"Normal"};
  }
+ // Physical pack controls are independent of the watch lock/link.
+ if(a.type==="physical"){
+  switch(a.control){
+   case "power":return {...s,pack:!!a.value,firing:false,cyclotron:"Normal",temperature:"Normal"};
+   case "music":return {...s,playing:!!a.value,paused:false};
+   case "level":return Number.isInteger(a.value)&&a.value>=1&&a.value<=5?{...s,level:a.value}:s;
+   case "wand":return {...s,wand:!!a.value,firing:a.value?s.firing:false};
+   case "cable":return {...s,cable:!!a.value};
+   case "firing":return s.pack&&s.wand?{...s,firing:!!a.value,cyclotron:a.value?"Active":"Normal"}:s;
+   default:return s;
+  }
+ }
  if(s.locked||!s.online)return s;
  const normal=["Normal","Active"].includes(s.cyclotron)&&!s.firing&&s.temperature!=="Venting";
  switch(a.type){

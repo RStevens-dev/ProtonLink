@@ -1,0 +1,51 @@
+name: Test and deploy simulator
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm test
+      - run: node --check simulator/model.js && node --check simulator/cases.js
+      - name: Check browser module syntax
+        run: |
+          python -c "from pathlib import Path; s=Path('simulator/index.html').read_text(); Path('simulator/.check.mjs').write_text(s.split('<script type=\"module\">')[1].split('</script>')[0])"
+          node --check simulator/.check.mjs
+          rm simulator/.check.mjs
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Stage static simulator only
+        run: |
+          mkdir -p _site
+          cp simulator/index.html simulator/model.js simulator/cases.js _site/
+          touch _site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

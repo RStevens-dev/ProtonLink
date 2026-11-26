@@ -10,6 +10,21 @@ ProtonLink is an independent wrist-mounted controller designed for the Waveshare
 
 A wearable field instrument, not a miniature desktop dashboard: glanceable visual telemetry while locked, deliberate access to controls, large touch targets for convention use, independent music control, and deeper equipment configuration when needed. The pack remains independently operable through its original controls.
 
+## Live simulator and test bench
+
+[Open the ProtonLink test bench](https://rstevens-dev.github.io/ProtonLink/) (available after GitHub Pages is enabled and the deployment succeeds).
+
+The browser bench pairs a virtual watch with a virtual pack and wand in one responsive layout. Both read the same state model. Watch commands update the pack; physical pack controls update the watch even while Field Lock is active. Offline mode hides watch telemetry and blocks commands while the virtual pack remains operable. Scenario injection covers standby, active, firing, warning, critical, venting and disconnected conditions. The event log and simulated /status JSON expose changes for debugging. No network commands or audio playback occur.
+
+The function-test panel runs the same isolated assertions as Node CI. Tests never mutate the interactive equipment. The page automatically runs them at startup and can rerun on demand.
+
+### GitHub Pages setup
+
+1. Open repository Settings → Pages.
+2. Under Build and deployment, select GitHub Actions as the source.
+3. In Actions, run **Test and deploy simulator** if the initial push did not deploy.
+4. Subsequent pushes to main run tests and deploy only when tests pass. Pull requests run tests without publishing. The Pages artifact contains only the static simulator, not credentials or real transport code.
+
 ## Quick start (offline)
 
 Clone this repository and serve it locally (ES modules require an HTTP origin):
@@ -110,6 +125,8 @@ ProtonLink/
   simulator/index.html
   simulator/model.js
   simulator/model.test.js
+  simulator/cases.js
+  .github/workflows/pages.yml
   assets/branding/README.md
   .gitignore
 ```
@@ -118,7 +135,7 @@ Native firmware directories are intentionally not represented as implemented cod
 
 ## Development and tests
 
-Run `node --test simulator/model.test.js` with a recent Node.js version. The included tests are intended to cover local state transitions, guards, track boundaries and idempotent desired playback state; execution has not yet been verified. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
+Run `node --test simulator/model.test.js` with a recent Node.js version. The shared function suite covers state transitions, guards, physical control synchronization, track boundaries, reconnect and idempotent desired playback state. Run npm test locally or the test panel in the browser. GitHub Actions gates Pages deployment on passing tests. Browser gesture and rendering tests remain manual. No claim of hardware or firmware test coverage.
 
 Manual acceptance checklist: locked taps do not mutate equipment; early release or moved hold cancels; expired unlock window relocks; distinct swipe is required; navigation never overlaps; lists scroll; music continues on lock; offline disables controls; unsupported modes are hidden; warnings remain visible; reconnect reads authoritative status; track IDs and names remain correct.
 
