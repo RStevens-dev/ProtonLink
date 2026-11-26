@@ -138,7 +138,7 @@ static void refresh(lv_timer_t *timer)
     (void)timer;
     protonlink_status_t s;
     ui_online = protonlink_snapshot(&s);
-    if (!ui_online && !field_locked) engage_lock();
+    if (!ui_online && (!field_locked || unlock_armed || gesture_active)) engage_lock();
     bool armed = ui_online && pl_is_unlocked();
     bool busy=pl_busy();
     if(!field_locked && !armed && ui_online) {
@@ -319,7 +319,7 @@ void protonlink_ui_create(void)
     for(int i=0;i<3;i++) {
         lv_obj_t *panel=lv_obj_create(screen);
         lv_obj_remove_flag(panel,LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_size(panel,386,76);
+        lv_obj_set_size(panel,386,72);
         lv_obj_set_style_pad_all(panel,0,0);
         lv_obj_set_style_bg_color(panel,lv_color_hex(0x1b2223),0);
         lv_obj_set_style_bg_grad_color(panel,lv_color_hex(0x353f40),0);
@@ -362,7 +362,7 @@ void protonlink_ui_create(void)
         lv_obj_set_style_border_color(levels[i],lv_color_hex(0x9ca9a8),LV_PART_KNOB);
         for(int j=0;j<20;j++) {
             leds[i][j]=lv_obj_create(panel); lv_obj_remove_style_all(leds[i][j]);
-            lv_obj_set_size(leds[i][j],14,12); lv_obj_set_pos(leds[i][j],30+j*16,46);
+            lv_obj_set_size(leds[i][j],14,12); lv_obj_set_pos(leds[i][j],30+j*16,43);
             lv_obj_set_style_bg_opa(leds[i][j],LV_OPA_COVER,0);
             lv_obj_remove_flag(leds[i][j],LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
         }
@@ -381,7 +381,7 @@ void protonlink_ui_create(void)
             lv_obj_t *mark=lv_obj_create(panel);
             lv_obj_remove_style_all(mark);
             lv_obj_set_size(mark,1,4);
-            lv_obj_set_pos(mark,27+33*tick,69);
+            lv_obj_set_pos(mark,27+33*tick,65);
             lv_obj_set_style_bg_color(mark,lv_color_hex(0x78837d),0);
             lv_obj_set_style_bg_opa(mark,LV_OPA_COVER,0);
         }
