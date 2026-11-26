@@ -9,10 +9,12 @@ permissions:
   contents: read
 jobs:
   mac:
+    timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - runner: macos-14
+          - runner: macos-15
             arch: arm64
           - runner: macos-15-intel
             arch: x86_64
@@ -23,8 +25,10 @@ jobs:
       - run: cmake -S firmware/desktop -B build-desktop -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
       - run: cmake --build build-desktop --parallel 4
       - name: Desktop smoke test
-        run: SDL_VIDEODRIVER=dummy build-desktop/ProtonLinkDesktop --smoke
+        timeout-minutes: 2
+        run: build-desktop/ProtonLinkDesktop --smoke
       - name: Package Mac executable and SDL dependency
+        timeout-minutes: 3
         run: |
           mkdir -p dist/lib
           cp build-desktop/ProtonLinkDesktop dist/
@@ -34,7 +38,7 @@ jobs:
           install_name_tool -change "$old" @executable_path/lib/libSDL2-2.0.0.dylib dist/ProtonLinkDesktop
           codesign --force --sign - dist/lib/libSDL2-2.0.0.dylib
           codesign --force --sign - dist/ProtonLinkDesktop
-          SDL_VIDEODRIVER=dummy dist/ProtonLinkDesktop --smoke
+          dist/ProtonLinkDesktop --smoke
           ditto -c -k --keepParent dist ProtonLink-Mac-${{ matrix.arch }}.zip
       - uses: actions/upload-artifact@v4
         with:
