@@ -37,6 +37,12 @@ static int run_smoke(void)
         fprintf(stderr, "Smoke test did not render any frames\n");
         return 1;
     }
+#ifdef PROTONLINK_BOUNDED_MEMORY
+    lv_mem_monitor_t mem;
+    lv_mem_monitor(&mem);
+    printf("LVGL pool: %zu total, %zu free, %zu largest free, %zu peak used bytes\n",
+           mem.total_size, mem.free_size, mem.free_biggest_size, mem.max_used);
+#endif
     puts("Desktop UI smoke test passed");
     return 0;
 }
