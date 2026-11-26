@@ -1,3 +1,4 @@
+import {fresh,linked,classify,commandGuard,backup,parseBackup,scenarios,runScenario} from './reliability.js';
 import {isQuick,toggleQuick,unlockPage,idlePage,allowed as quickAllowed,intent as quickIntent,quickHeader,quickBody,quickTransport} from './quick.js';
 import {fromDevice,trackTitle,importTracks,fromFilenames,escapeHTML} from './library.js';
 import {initial,dispatch,canChangeStream} from './model.js';
@@ -93,5 +94,12 @@ cases.push(
  ["Industrial transport start and pause follow playback",()=>{const s=open(),a=quickTransport(s,false,"A"),b=quickTransport({...s,playing:true,paused:true},false,"B");check(a.includes('data-act="play"')&&a.includes('data-act="pause" disabled')&&b.includes('data-act="stop"')&&b.includes("RESUME"),"transport state")}],
  ["Industrial transport uses existing music routes",()=>{const s=open();check(route(s,{type:"play"})==="/music/startstop"&&route({...s,playing:true},{type:"pause"})==="/music/pauseresume"&&route(s,{type:"track",value:503})==="/music/select?track=503","route mapping")}],
  ["Industrial transport blocks writes while offline",()=>{const h=quickTransport({...open(),online:false},false,"A");check((h.match(/ disabled/g)||[]).length===4,"offline guard")}]
+);
+cases.push(
+ ["Telemetry expires after 15 seconds",()=>{check(fresh(1000,16000)&&!fresh(1000,16001),"freshness")}],
+ ["Stale telemetry blocks commands",()=>{check(commandGuard(open(),defaults(),{type:"play"},1000,20000)==="Telemetry stale","guard")}],
+ ["Dropped response classified uncertain",()=>{check(classify(simulate(open(),{type:"play"},{fault:"response"}))==="UNCERTAIN","classification")}],
+ ["Configuration backup round trip",()=>{const x=parseBackup(JSON.stringify(backup("pke",{mainMode:"quick"},{local:{500:"Theme"},synced:{},auto:true},{})));check(x.trackStore.local[500]==="Theme"&&x.preferences.mainMode==="quick","backup")}],
+ ...scenarios.map(spec=>["Scenario: "+spec.name,()=>{const r=runScenario(spec);check(r.pass,r.error)}])
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

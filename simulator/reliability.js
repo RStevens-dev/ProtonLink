@@ -1,0 +1,19 @@
+import {initial,dispatch} from './model.js';
+import {simulate} from './lab.js';
+import {status} from './protocol.js';
+import {validateEntries,entriesOf} from './library.js';
+export const fresh=(last,now=Date.now())=>last>0&&now-last<=15000;
+export const linked=(s,cfg)=>!!(s.online&&cfg.gateway&&cfg.gatewayPower);
+export function classify(result){const ev=result.events;if(ev.some(e=>e.kind==="FAULT"))return "UNCERTAIN";if(ev.some(e=>/^4\d\d /.test(e.summary)))return "REJECTED";if(!ev.some(e=>e.summary.startsWith("PUT ")))return "NO REQUEST";if(ev.some(e=>e.summary==="200 OK · /status"&&e.body?.pack!==undefined))return "TELEMETRY RECEIVED";return ev.some(e=>e.summary.startsWith("200 OK · /"))?"ACKNOWLEDGED":"SENT"}
+export function commandGuard(s,cfg,a,stamp,now=Date.now()){if(s.locked)return "Field Lock";if(!linked(s,cfg))return "Equipment link unavailable";if(!fresh(stamp,now))return "Telemetry stale";if(a.type==="stream"&&!cfg.streams?.includes(a.value)&&cfg.streams)return "Unsupported stream";return ""}
+export function backup(faceId,preferences,trackStore,lighting){return {version:1,faceId,preferences,tracks:{local:entriesOf(trackStore.local),synced:entriesOf(trackStore.synced),auto:trackStore.auto},lighting}}
+export function parseBackup(raw){const x=JSON.parse(raw);if(x.version!==1||typeof x.faceId!=="string"||!x.preferences||typeof x.preferences!=="object"||Array.isArray(x.preferences))throw Error("Unsupported backup");const p=x.preferences;return {faceId:x.faceId,preferences:{mainMode:p.mainMode==="quick"?"quick":"field",dock:["mixer","pack","effects","diagnostics","music"].includes(p.dock)?p.dock:"mixer",followEra:!!p.followEra,reduceMotion:!!p.reduceMotion,marqueeColor:p.marqueeColor},trackStore:{local:validateEntries(x.tracks.local),synced:validateEntries(x.tracks.synced),auto:x.tracks.auto!==false},lighting:Object.fromEntries(Object.entries(x.lighting||{}).filter(([k,v])=>/^led(CycLid|Powercell)(Hue|Sat|Lum)$/.test(k)&&Number.isInteger(v)&&v>=0&&v<=255))}}
+export const scenarios=[
+ {name:"Lock prevents writes",steps:[{a:{type:"play"},expect:{playing:false}}]},
+ {name:"Start, pause, resume, stop",steps:[{a:{type:"unlock"},expect:{locked:false}},{a:{type:"play"},expect:{playing:true}},{a:{type:"pause"},expect:{paused:true}},{a:{type:"pause"},expect:{paused:false}},{a:{type:"stop"},expect:{playing:false}}]},
+ {name:"Dropped request does not change state",steps:[{a:{type:"unlock"}},{a:{type:"play"},cfg:{fault:"request"},expect:{playing:false}}]},
+ {name:"Dropped response changes equipment but not cache",steps:[{a:{type:"unlock"}},{a:{type:"play"},cfg:{fault:"response"},expect:{playing:true},cache:{playing:false}}]},
+ {name:"Offline physical power remains independent",steps:[{a:{type:"scenario",value:"offline"}},{a:{type:"physical",control:"power",value:true},expect:{pack:true,locked:true},cache:{pack:false}}]}
+];
+export function runScenario(spec){let s=initial(),cache={...s};for(const [i,step] of spec.steps.entries()){const a=step.a;if(["unlock","lock","physical","scenario"].includes(a.type)){s=dispatch(s,a);if(s.online)cache={...s}}else{const r=simulate(s,a,step.cfg||{},()=>.99);s=r.state;if(r.delivered)cache={...s}}for(const [source,expected] of [[s,step.expect],[cache,step.cache]])for(const [k,v] of Object.entries(expected||{}))if(source[k]!==v)return {name:spec.name,pass:false,error:"Step "+(i+1)+": "+k};}return {name:spec.name,pass:true}}
+export function quality(history){const commands=history.filter(x=>x.kind==="command"),times=commands.map(x=>x.ms);return {commands:commands.length,average:times.length?Math.round(times.reduce((a,b)=>a+b,0)/times.length):0,uncertain:commands.filter(x=>x.result==="UNCERTAIN").length,disconnects:history.filter(x=>x.kind==="disconnect").length,reconnects:history.filter(x=>x.kind==="reconnect").length}}
