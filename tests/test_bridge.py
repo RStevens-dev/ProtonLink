@@ -22,6 +22,11 @@ class BridgeTest(unittest.TestCase):
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(raw)
+            def do_PUT(self):
+                calls.append("PUT "+self.path)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"status":"success"}')
         self.up = ThreadingHTTPServer(("127.0.0.1",0), Mock)
         self.server = ThreadingHTTPServer(("127.0.0.1",0), bridge.handler_for("127.0.0.1",self.up.server_port,set()))
         # Recreate the handler with the selected loopback origin.
@@ -48,3 +53,17 @@ class BridgeTest(unittest.TestCase):
             urlopen(Request(self.url+"/bridge/status",headers={"Origin":"https://other.example"}))
         self.assertEqual(ctx.exception.code,403)
         self.assertEqual(self.calls,[])
+
+    def test_control_allowlist(self):
+        self.server.RequestHandlerClass = bridge.handler_for("127.0.0.1",self.up.server_port,{f"127.0.0.1:{self.server.server_port}"},True)
+        headers={"Origin":self.url,"X-ProtonLink-Command":"1"}
+        for path in ("/pack/on","/music/select?track=514","/volume/master/set/10"):
+            self.assertEqual(json.load(urlopen(Request(self.url+"/bridge"+path,headers=headers,method="PUT")))["status"],"success")
+        for path in ("/pack/unknown","/music/select?track=499","/volume/master/set/101"):
+            with self.assertRaises(HTTPError):
+                urlopen(Request(self.url+"/bridge"+path,headers=headers,method="PUT"))
+        self.assertEqual(self.calls,["PUT /pack/on","PUT /music/select?track=514","PUT /volume/master/set/10"])
+    def test_preference_probe(self):
+        self.assertTrue(json.load(urlopen(self.url+"/bridge/settings/pack"))["requested"])
+        self.assertEqual(json.load(urlopen(self.url+"/bridge/config/pack"))["pack"],"Idle")
+        self.assertEqual(self.calls,["/settings/pack","/config/pack"])
