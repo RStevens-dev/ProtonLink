@@ -28,5 +28,14 @@ int main(void) {
     assert(!pl_command_path(PL_PAUSE_RESUME,&s));
     s.playing=true; assert(pl_command_path(PL_PAUSE_RESUME,&s));
     s.online=false; assert(!pl_command_path(PL_NEXT,&s));
+    s.online=true; s.master=50; s.effects=50; s.music=50;
+    assert(!strcmp(pl_volume_step(&s,0,75),"/volume/master/up"));
+    assert(!strcmp(pl_volume_step(&s,1,25),"/volume/effects/down"));
+    assert(!strcmp(pl_volume_step(&s,2,75),"/volume/music/up"));
+    assert(!pl_volume_step(&s,2,50));
+    assert(!pl_volume_step(&s,-1,50));
+    assert(!pl_volume_step(&s,3,50));
+    assert(!pl_volume_step(&s,0,101));
+    s.online=false; assert(!pl_volume_step(&s,0,75));
     return 0;
 }
