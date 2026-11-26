@@ -13,3 +13,6 @@ int pl_volume_value(const protonlink_status_t *s, int channel);
 const char *pl_volume_step(const protonlink_status_t *s, int channel, int target);
 bool pl_request_volume(int channel, int target);
 bool pl_busy(void);
+
+bool pl_track_allowed(const protonlink_status_t *s, int track);
+bool pl_request_track(int track);
