@@ -24,3 +24,17 @@ const char *pl_command_path(pl_action_t a, const protonlink_status_t *s)
     default: return NULL;
     }
 }
+
+int pl_volume_value(const protonlink_status_t *s, int channel)
+{
+    if (!s || !s->online) return -1;
+    switch(channel) { case 0: return s->master; case 1: return s->effects; case 2: return s->music; default: return -1; }
+}
+const char *pl_volume_step(const protonlink_status_t *s, int channel, int target)
+{
+    int current = pl_volume_value(s, channel);
+    if (current < 0 || current > 100 || target < 0 || target > 100 || current == target) return NULL;
+    static const char *const up[] = {"/volume/master/up","/volume/effects/up","/volume/music/up"};
+    static const char *const down[] = {"/volume/master/down","/volume/effects/down","/volume/music/down"};
+    return target > current ? up[channel] : down[channel];
+}
