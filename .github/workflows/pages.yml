@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js && node --check simulator/lab.js && node --check simulator/volume.js && node --check simulator/faces.js && node --check simulator/library.js && node --check simulator/quick.js && node --check simulator/reliability.js && node --check simulator/field.js
+      - run: node --check simulator/model.js && node --check simulator/cases.js && node --check simulator/protocol.js && node --check simulator/lab.js && node --check simulator/volume.js && node --check simulator/faces.js && node --check simulator/library.js && node --check simulator/quick.js && node --check simulator/reliability.js && node --check simulator/field.js && node --check simulator/immersion.js
       - name: Verify branch-published entry point and module paths
         run: |
           test -f .nojekyll

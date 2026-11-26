@@ -1,0 +1,5 @@
+# Batch 3 — Visual identity and immersion
+
+Display / session tab controls four local finishes, adaptive illumination, an optional 1.3-second boot preview, dynamic field face choices, PKE scan behavior, animation intensity, brightness simulation, contact labels, ambient standby display and event overlays. PKE remains the default; dynamic switching is opt-in. Alarm overlays retain priority and no display action sends an equipment command. Ambient is only permitted during linked idle conditions, not an alarm. Native AMOLED power savings and hardware performance are not measured.
+
+Session statistics count observed pack-on time, firing, vent transitions and level dwell time. Offline or long unsampled intervals are unknown, not extrapolated. Session data is in-memory and exportable. Optional inner cyclotron, N-filter, cavity and fan previews are illustrative, local hardware configuration only; no physical hardware detection or changes. Preferences are stored locally and included in JSON configuration backup. Browser tests validate startup, selection, persistence and preview components; no pixel-level visual or physical-device validation is claimed.

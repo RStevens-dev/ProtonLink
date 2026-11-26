@@ -1,3 +1,4 @@
+import {normalizeVisual,equipmentState,illumination,activeFace,scanRate,eventChanges,emptyStats,accumulate,hardwareMarkup} from './immersion.js';
 import {normalizeField,gesturePage,selectTracks,readiness,reduceAudio,equipmentSnapshot,equipmentPlan} from './field.js';
 import {fresh,linked,classify,commandGuard,backup,parseBackup,scenarios,runScenario} from './reliability.js';
 import {isQuick,toggleQuick,unlockPage,idlePage,allowed as quickAllowed,intent as quickIntent,quickHeader,quickBody,quickTransport} from './quick.js';
@@ -112,5 +113,14 @@ cases.push(
  ["Equipment preset never enables smoke or powers equipment",()=>{const s=open(),p=equipmentSnapshot("Test",{...s,smoke:true,pack:true});check(!equipmentPlan(s,p,false).some(a=>a.type==="power"||a.type==="smoke"),"preset guard")}],
  ["Startup check flags missing cable and stale telemetry",()=>{check(readiness({...open(),cable:false},true,false).filter(x=>!x[1]).length===2,"readiness")}],
  ["Pack profiles store separate track names",()=>{const f=normalizeField({packs:[{name:"A",tracks:{local:[{id:500,title:"A"}]}},{name:"B",tracks:{local:[{id:500,title:"B"}]}}]});check(f.packs[0].tracks.local[0].title!==f.packs[1].tracks.local[0].title,"profiles")}]
+);
+cases.push(
+ ["Visual preferences preserve default PKE behavior",()=>{const v=normalizeVisual();check(v.finish==="weathered"&&!v.dynamic&&activeFace("pke",open(),v)==="pke","defaults")}],
+ ["Adaptive illumination follows alarm and vent telemetry",()=>{check(illumination({...open(),cable:false})==="#ff6758"&&equipmentState({...open(),temperature:"Venting"})==="venting","illumination")}],
+ ["Dynamic faces obey alarm priority",()=>{const v=normalizeVisual({dynamic:true,firingFace:"analog",alarmFace:"mission"});check(activeFace("pke",{...open(),firing:true},v)==="analog"&&activeFace("pke",{...open(),firing:true,cable:false},v)==="mission","priority")}],
+ ["PKE sweep accelerates with equipment condition",()=>{check(scanRate({...open(),pack:true,firing:true})>scanRate(open())&&scanRate({...open(),online:false})===0,"scan")}],
+ ["Event overlays only reflect observed changes",()=>{const s=open();check(eventChanges(s,{...s,pack:true,track:503}).join()==="PACK ACTIVATED,AUDIO TRACK 503"&&eventChanges(s,{...s,online:false,pack:true}).join()==="LINK LOST","events")}],
+ ["Session statistics separate observed and unknown time",()=>{const s={...open(),pack:true,firing:true,level:3};let n=accumulate(emptyStats(),s,{...s,temperature:"Venting"},1000);n=accumulate(n,s,{...s,online:false},2000);check(n.packMs===1000&&n.firingMs===1000&&n.vents===1&&n.levels[2]===1000&&n.unknownMs===2000,"stats")}],
+ ["Hardware previews only draw selected optional components",()=>{check(!hardwareMarkup(open(),{}).includes("N-FILTER")&&hardwareMarkup(open(),{filter:true}).includes("N-FILTER"),"hardware")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

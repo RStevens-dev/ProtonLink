@@ -197,3 +197,6 @@ Development batches use feature branches and pull requests into develop. See [de
 
 
 Batch 2 adds field setup, audio presets, favorites, playlists and local pack profiles; see [field functionality](docs/FIELD_SETUP.md).
+
+
+Batch 3 adds display finishes, adaptive telemetry-driven animations, startup, ambient mode, local session statistics and optional virtual hardware; see [visual identity](docs/IMMERSION.md).
