@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTES = {"/bridge/status": "/status", "/bridge/config/device": "/config/device", "/bridge/openapi.json": "/openapi.json"}
+ROUTES = {"/bridge/status": "/status", "/bridge/config/device": "/config/device", "/bridge/openapi.json": "/openapi.json", **{"/bridge/config/"+k: "/config/"+k for k in ("pack","wand","smoke")}}
 MAX_BODY = 1024 * 1024
 
 def resolve_target(host, port):
@@ -45,6 +45,16 @@ def handler_for(target, port, allowed_hosts):
             url = urlsplit(self.path)
             if url.query or url.fragment or url.netloc or url.scheme:
                 return self.error_json(400, "Queries and absolute URLs not accepted")
+            if url.path in ("/bridge/settings/pack", "/bridge/settings/wand", "/bridge/settings/smoke"):
+                conn = http.client.HTTPConnection(target, port, timeout=3)
+                try:
+                    conn.request("GET", url.path[len("/bridge"):], headers={"Connection":"close"})
+                    res = conn.getresponse()
+                    return self.reply(res.status, json.dumps({"requested":res.status == 200}).encode())
+                except (OSError, http.client.HTTPException):
+                    return self.error_json(502, "Preference request failed")
+                finally:
+                    conn.close()
             if url.path in ROUTES:
                 conn = http.client.HTTPConnection(target, port, timeout=3)
                 try:
@@ -94,7 +104,10 @@ def main():
     parser.add_argument("--port", type=int, default=8080, help="Loopback UI port")
     parser.add_argument("--upstream-port", type=int, default=80)
     args = parser.parse_args()
-    target = resolve_target(args.host, args.upstream_port)
+    try:
+        target = resolve_target(args.host, args.upstream_port)
+    except (OSError, ValueError) as exc:
+        parser.error("Cannot resolve equipment: " + str(exc))
     allowed = {f"127.0.0.1:{args.port}", f"localhost:{args.port}"}
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(target, args.upstream_port, allowed))
     print(f"Read-only ProtonLink: http://127.0.0.1:{args.port}/simulator/", flush=True)
