@@ -243,7 +243,7 @@ void app_main(void)
     action_button(music,PL_NEXT,"NEXT",78,NULL);
     for(int i=PL_PLAY_STOP;i<=PL_NEXT;i++) lv_obj_set_height(buttons[i],33);
     lv_obj_t *hazard=line(screen,8);
-    lv_obj_set_flex_flow(hazard,LV_FLEX_FLOW_NONE);
+    lv_obj_set_layout(hazard,LV_LAYOUT_NONE);
     for(int i=0;i<24;i++) {
         lv_obj_t *stripe=lv_obj_create(hazard);
         lv_obj_remove_style_all(stripe);
