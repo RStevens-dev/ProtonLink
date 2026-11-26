@@ -1,6 +1,8 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 #define LV_COLOR_DEPTH 32
+/* Desktop rendering uses the host heap rather than the embedded LVGL pool. */
+#define LV_USE_STDLIB_MALLOC LV_STDLIB_CLIB
 #define LV_USE_SDL 1
 #define LV_SDL_INCLUDE_PATH "SDL.h"
 #define LV_FONT_MONTSERRAT_12 1
