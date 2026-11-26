@@ -5,6 +5,14 @@ typedef struct {
     bool online;
     bool pack_on;
     bool firing;
+    bool music_known;
+    bool playing;
+    bool paused;
+    bool transition_known;
+    bool ramping;
+    bool lockout;
+    bool legacy_superhero;
+    int track;
     int master;
     int effects;
     int music;
