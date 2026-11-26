@@ -1,0 +1,42 @@
+name: Native desktop simulator
+on:
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/native-desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mac:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install sdl2 cmake
+      - run: cmake -S firmware/desktop -B build-desktop -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
+      - run: cmake --build build-desktop --parallel 4
+      - name: Desktop smoke test
+        run: SDL_VIDEODRIVER=dummy build-desktop/ProtonLinkDesktop --smoke
+      - name: Package Mac executable and SDL dependency
+        run: |
+          mkdir -p dist/lib
+          cp build-desktop/ProtonLinkDesktop dist/
+          dylib="$(brew --prefix sdl2)/lib/libSDL2-2.0.0.dylib"
+          cp -L "$dylib" dist/lib/libSDL2-2.0.0.dylib
+          old="$(otool -L dist/ProtonLinkDesktop | awk '/libSDL2/{print $1;exit}')"
+          install_name_tool -change "$old" @executable_path/lib/libSDL2-2.0.0.dylib dist/ProtonLinkDesktop
+          codesign --force --sign - dist/lib/libSDL2-2.0.0.dylib
+          codesign --force --sign - dist/ProtonLinkDesktop
+          SDL_VIDEODRIVER=dummy dist/ProtonLinkDesktop --smoke
+          ditto -c -k --keepParent dist ProtonLink-Mac-${{ matrix.arch }}.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ProtonLink-Mac-${{ matrix.arch }}
+          path: ProtonLink-Mac-${{ matrix.arch }}.zip
