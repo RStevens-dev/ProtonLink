@@ -6,7 +6,13 @@ export function commandPath(s,a){
  if (["power","vent"].includes(a.type) || (a.type === "smoke" && a.value)) {
    if (a.confirmed !== true) throw Error("Hold to confirm this command");
  }
- if (a.type === "power" && (typeof a.value !== "boolean" || !normal || s.ramping !== false)) throw Error("Power change unavailable");
+ if (a.type === "power") {
+   if (typeof a.value !== "boolean") throw Error("Choose power on or off");
+   if (!normal) throw Error("Power blocked by firing, temperature or cyclotron state");
+   // Legacy Super Hero firmware checks shutdown in its on/off handlers.
+   const legacyPower = s.mode === "Super Hero" && s.ramping === null;
+   if (s.ramping !== false && !legacyPower) throw Error("Power transition active or unknown");
+ }
  if (a.type === "vent" && (!normal || !s.pack)) throw Error("Vent unavailable");
  if (a.type === "smoke" && a.value && !normal) throw Error("Smoke unavailable");
  if (a.type === "theme" && (!themes.includes(a.value) || !normal || s.pack || s.wandPower || s.ramping !== false)) throw Error("Theme change unavailable");

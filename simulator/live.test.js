@@ -75,3 +75,15 @@ test('live command validation uses fresh state, confirmations and bounded inputs
   assert.throws(()=>commandPath({...state,ramping:null},{type:'power',value:true,confirmed:true}));
   assert.equal(commandPath(state,{type:'power',value:true,confirmed:true}),'/pack/on');
 });
+
+test('legacy Super Hero power uses explicit on/off routes and preserves transition guards', () => {
+  const state = {...initial(), mode:'Super Hero', ramping:null};
+  const power = {type:'power',value:true,confirmed:true};
+  assert.equal(commandPath(state,power),'/pack/on');
+  assert.equal(commandPath({...state,pack:true},{...power,value:false}),'/pack/off');
+  assert.equal(commandPath({...state,pack:true},power),null);
+  for (const change of [{ramping:true},{firing:true},{temperature:'Venting'},{cyclotron:'Critical'}]) {
+    assert.throws(()=>commandPath({...state,...change},power));
+  }
+  assert.throws(()=>commandPath(state,{...power,confirmed:false}));
+});

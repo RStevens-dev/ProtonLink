@@ -252,8 +252,16 @@ async function sendRealIntent(intent){
  try{
   if(liveBusy){commandState="BUSY · retry after telemetry";return false}
   if(!await pollReal()||!liveMode||generation!==liveGeneration||s.locked||!s.online)return false;
-  const guard=commandGuard(s,cfg,intent,lastTelemetry);if(guard)throw Error(guard);
-  const before={...s};const path=commandPath(s,intent);if(!path)return false;
+  const before={...s};
+  let path;
+  try {
+   const guard=commandGuard(s,cfg,intent,lastTelemetry);
+   if(guard)throw Error(guard);
+   path=commandPath(s,intent);
+  } catch(e) {
+   commandState="BLOCKED · "+e.message;local(commandState);return false;
+  }
+  if(!path)return false;
   record([{kind:"HTTP",direction:"Watch → Attenuator",summary:"PUT "+path}]);
   const ack=await sendCommand(path);
   if(!liveMode||generation!==liveGeneration)return false;
