@@ -1,0 +1,3 @@
+# Animated instrument design
+
+The watch uses a 410 × 502 fixed canvas. Animation reflects reported/simulated state: pack active, power level, firing, direction, music playing/paused, alarm state and selected stream. Reactor and playback graphics are illustrative, not measured speed or sound amplitude. The unlock bar shows the local two-second hold. Music uses the same documented toggle logic and raw track IDs; mixer plus/minus controls retain incremental effects/music routes. The fader graphics are readouts, not arbitrary remote sliders. No new hardware commands are introduced. The workshop remains preview-only. Reduced motion disables decorative animation. Browser layout, gesture interaction, and physical display performance require verification.
