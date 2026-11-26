@@ -97,3 +97,11 @@ test('legacy master steps and stream eligibility use observed state', () => {
     assert.throws(()=>commandPath({...s,...change},{type:'stream',value:'Stasis'}));
   }
 });
+
+import {nextVolumeIntent} from './volume.js';
+test('live master slider replans each step from the reported value', () => {
+  for (const [current,target,expected] of [[30,45,35],[35,45,40],[40,45,45],[50,45,45]]) {
+    assert.equal(nextVolumeIntent('master',current,target,true).value,expected);
+  }
+  assert.equal(nextVolumeIntent('master',45,45,true),null);
+});
