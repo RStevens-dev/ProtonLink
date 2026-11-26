@@ -38,7 +38,7 @@ The native Industrial Control panel follows `simulator/quick.js` and the `.quick
 
 ## Native macOS simulator
 
-The desktop target compiles the exact same `main/ui.c` and `main/control.c` as the ESP32, using LVGL 9.5 and SDL2 with simulated telemetry. It never connects to equipment. Download the appropriate Apple Silicon (arm64) or Intel (x86_64) artifact from the Native desktop simulator GitHub Actions workflow after it passes. Extract both ZIP layers if necessary, keep the executable and lib folder together, and run from Terminal:
+The desktop target compiles the exact same `main/ui.c` and `main/control.c` as the ESP32, using LVGL 9.5 and SDL2 with simulated telemetry. It never connects to equipment. Download the appropriate Apple Silicon (arm64) or Intel (x86_64) artifact from the Native desktop simulator GitHub Actions workflow after it passes. Extract both ZIP layers if necessary, keep the executable in the extracted folder, and run from Terminal:
 
 ```sh
 cd /path/to/dist
@@ -48,10 +48,20 @@ cd /path/to/dist
 The artifacts are ad-hoc signed development executables, not notarized Mac apps. Alternatively build locally with Homebrew:
 
 ```sh
-brew install cmake sdl2
-cmake -S firmware/desktop -B build-desktop -DCMAKE_PREFIX_PATH="$(brew --prefix sdl2)"
+brew install cmake
+cmake -S firmware/desktop -B build-desktop
 cmake --build build-desktop --parallel
 ./build-desktop/ProtonLinkDesktop
 ```
 
 Hold the lock button using the mouse to enable simulated controls; drag sliders and release. Press 0 for link loss, 1 for normal link, 2 for firing, 3 for critical/lockout, Escape to quit. Simulated vent lasts four seconds. The desktop does not model network latency or physical display/touch/battery characteristics.
+
+SDL2 is fetched at build time and linked statically. CI tests both the original executable and the signed, extracted ZIP. For a separate bounded LVGL pool test:
+
+```sh
+cmake -S firmware/desktop -B build-bounded -DPROTONLINK_BOUNDED_MEMORY=ON
+cmake --build build-bounded --parallel
+./build-bounded/ProtonLinkDesktop --smoke
+```
+
+The 2 MiB pool is a provisional UI regression budget, not a model of total ESP32 memory or DMA requirements. Smoke testing exercises simulated telemetry states and reports LVGL pool usage; it does not replace physical touch and network tests. Watch startup logs report internal RAM and PSRAM free, largest free block and historical minimum free at display/UI/network initialization. Confirm actual memory budgets on hardware.
