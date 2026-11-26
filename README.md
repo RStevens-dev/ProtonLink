@@ -105,6 +105,8 @@ Display real reported states, not fictional sensor readings. Decorative waveform
 
 ### Music and audio
 
+The mixer supports tapping, dragging and keyboard control on all three faders, plus existing +/- buttons. Targets update immediately and settle for 600 ms after the last adjustment (and after release). Master sends one absolute command; music and effects send only the required 5% increments, reconciling between steps. A failed/uncertain delivery cancels that batch rather than blindly retrying. Field Lock, disconnect and reset cancel queued edits. The archived upstream pack Configuration.h defines 5% increments for all three channels; actual installed firmware remains to be verified.
+
 Music plays from the existing equipment, not the watch. Track IDs are supplied by the gateway, potentially starting at 500 rather than 1. Compute display ordinal from musicStart; never send the ordinal as a raw API ID. Use configured songList names when available and fall back to numbered tracks.
 
 The start/stop and pause/resume endpoints are toggles. Read fresh status before toggling, skip the command if the desired state is already reached, serialize operations, verify the result, and never blindly retry after a timeout. Master volume supports absolute values; music/effects use incremental commands. Present step controls and reconcile reported values instead of pretending that arbitrary slider positions are supported.

@@ -1,6 +1,7 @@
 import {initial,dispatch} from './model.js';
 import {exchange,route,connect,status} from './protocol.js';
 import {simulate,diff,defaults,readPreview} from './lab.js';
+import {volumeTarget,nextVolumeIntent,queueVolume,dueVolumes} from './volume.js';
 const open=()=>dispatch(initial(),{type:'unlock'});
 const check=(condition,message)=>{if(!condition)throw new Error(message)};
 export const cases=[
@@ -36,5 +37,16 @@ cases.push(
  ["Profile filters unavailable stream",()=>{let s=open();check(simulate(s,{type:"stream",value:"Halloween"},{profile:"legacy"}).state===s,"unsupported stream")}],
  ["Legacy profile lacks OpenAPI",()=>{check(readPreview("/openapi.json",initial(),{profile:"legacy"})===null,"legacy exposed discovery")}],
  ["Disconnected gateway blocks command",()=>{let s=open();check(simulate(s,{type:"play"},{gateway:false}).state===s,"gateway offline write")}]
+);
+cases.push(
+ ["Volume debounce coalesces repeated adjustments",()=>{let q=queueVolume({},"master",80,0);q=queueVolume(q,"master",90,400);check(!dueVolumes(q,600).length,"early send");check(dueVolumes(q,1000)[0]==="master"&&q.master.target===90,"latest target lost")}],
+ ["Active drag suppresses send",()=>{const q=queueVolume({},"effects",30,0);check(!dueVolumes(q,1000,["effects"]).length,"sent while dragging")}],
+ ["Volume channels debounce independently",()=>{let q=queueVolume({},"master",30,0);q=queueVolume(q,"music",50,500);check(dueVolumes(q,600).join()==="master","incorrect due channels")}],
+ ["Master rounds to supported 5 percent steps",()=>{check(volumeTarget(83)===85&&volumeTarget(102)===100&&volumeTarget(-5)===0,"invalid target")}],
+ ["Master sends one absolute write",()=>{const a=nextVolumeIntent("master",75,20);const x=exchange(open(),a);check(x.state.master===20&&x.events.filter(e=>e.summary.startsWith("PUT ")).length===1,"incorrect master write")}],
+ ["Effects only advance one step per request",()=>{const x=exchange(open(),{type:"volume",channel:"effects",value:20});check(x.state.effects===75&&x.events.some(e=>e.summary==="PUT /volume/effects/down"),"unrealistic effects jump")}],
+ ["Music reaches final target with minimum incremental writes",()=>{let s=open(),count=0;while(s.music!==90&&count<10){const a=nextVolumeIntent("music",s.music,90);s=exchange(s,a).state;count++}check(s.music===90&&count===4,"incorrect incremental count")}],
+ ["Returning to same volume needs no write",()=>{check(nextVolumeIntent("master",75,75)===null&&nextVolumeIntent("effects",80,80)===null,"redundant write")}],
+ ["Unaligned volume target cannot oscillate",()=>{check(nextVolumeIntent("music",72,70)===null,"overshoot")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

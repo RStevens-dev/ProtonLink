@@ -2,6 +2,7 @@
 // Routes and acknowledgement format based on upstream Attenuator Webrouting.h,
 // Webhandler.h and SharedLib/WebRouter/include/WebRouter.h.
 import {dispatch} from './model.js';
+import {nextVolumeIntent} from './volume.js';
 const modeNames={Proton:'Proton Stream',Stasis:'Stasis Stream',Slime:'Slime Tether',Meson:'Meson Collider',Spectral:'Spectral Stream',Halloween:'Halloween',Christmas:'Christmas',Custom:'Custom Spectral'};
 const streamPaths={Proton:'proton',Stasis:'stasis',Slime:'slime',Meson:'meson',Spectral:'spectral',Halloween:'holiday/halloween',Christmas:'holiday/christmas',Custom:'spectral/custom'};
 export function status(s){return {mode:"Upgraded",modeID:1,theme:s.theme,smoke:s.smoke,vibration:s.vibration,direction:s.direction,pack:s.pack?"Powered":"Idle",power:String(s.level),wand:s.wand?"Connected":"Not Connected",wandMode:modeNames[s.stream]||s.stream,firing:s.firing?"Firing":"Idle",cable:s.cable?"Connected":"Disconnected",cyclotron:s.cyclotron,temperature:s.temperature,musicPlaying:s.playing,musicPaused:s.paused,musicLooping:s.loop,musicShuffled:s.shuffle,musicCurrent:s.track,musicStart:s.first,musicEnd:s.last,volMuted:s.muted,volMaster:s.master,volEffects:s.effects,volMusic:s.music,canChangeStream:!s.firing&&s.temperature!=="Venting"&&["Normal","Active"].includes(s.cyclotron)}}
@@ -35,7 +36,9 @@ export function exchange(s,a){
  if(a.type==="theme"&&s.pack)return {state:s,events:[...events,entry("LOCAL","Watch","Theme change blocked while pack powered · no request sent",a)]};
  const path=route(s,a);
  if(!path)return {state:s,events:[...events,entry("LOCAL","Watch","No request required or unsupported intent",a)]};
- const next=dispatch(s,a);
+ const effective=a.type==='volume'?nextVolumeIntent(a.channel,s[a.channel],a.value):a;
+ if(!effective)return {state:s,events:[...events,entry('LOCAL','Watch','Volume already at target or no reachable step',a)]};
+ const next=dispatch(s,effective);
  if(next===s)return {state:s,events:[...events,entry("LOCAL","Watch","Command rejected by local guard · no request sent",a)]};
  events.push(entry("HTTP","Watch → Attenuator","PUT "+path),entry("HTTP","Attenuator → Watch","200 OK · "+path,{status:"success"}));
  if(JSON.stringify(status(next))!==JSON.stringify(status(s)))events.push(push(next));
