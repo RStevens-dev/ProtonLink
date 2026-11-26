@@ -13,6 +13,10 @@ jobs:
     container: espressif/idf:v5.4.3
     steps:
       - uses: actions/checkout@v4
+      - name: Host command guard tests
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -Ifirmware/main firmware/main/control.c firmware/tests/control_test.c -o /tmp/protonlink-control-test
+          /tmp/protonlink-control-test
       - name: Build ESP32-S3 firmware
         shell: bash
         run: |
@@ -28,3 +32,12 @@ jobs:
             firmware/build/bootloader/bootloader.bin
             firmware/build/partition_table/partition-table.bin
             firmware/build/flasher_args.json
+      - name: Compile experimental control configuration
+        shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          cd firmware
+          cp sdkconfig.defaults /tmp/protonlink-control.defaults
+          printf '\nCONFIG_PROTONLINK_ENABLE_CONTROL=y\n' >> /tmp/protonlink-control.defaults
+          idf.py -B build-control -D SDKCONFIG=/tmp/protonlink-control.sdkconfig -D SDKCONFIG_DEFAULTS=/tmp/protonlink-control.defaults set-target esp32s3
+          idf.py -B build-control -D SDKCONFIG=/tmp/protonlink-control.sdkconfig -D SDKCONFIG_DEFAULTS=/tmp/protonlink-control.defaults build
