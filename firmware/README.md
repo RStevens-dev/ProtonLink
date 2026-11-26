@@ -32,3 +32,6 @@ Enable **Enable experimental GPStar control** in menuconfig only on a controlled
 - Record board revision and installed pack/wand/Attenuator firmware versions.
 
 Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main/examples/esp-idf/02_lvgl_demo_v9
+
+## Visual parity
+The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`: industrial metal panels, red LINK wordmark, three channel colors, numeric readouts, fader tracks, scale marks, green track readout and hazard separator. Native LVGL uses a simplified continuous indicator and rectangular hazard marks rather than the browser's segmented LEDs and diagonal texture. Track titles, LIST, PKE face navigation and exact browser hold/swipe timing remain to be ported. The physical layout requires display/touch validation.
