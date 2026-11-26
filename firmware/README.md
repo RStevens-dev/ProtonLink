@@ -13,7 +13,7 @@ idf.py build
 idf.py -p YOUR_PORT flash monitor
 ```
 
-Expected: native Industrial Control panel with three volume meters and step buttons, music transport, pack controls and Field Lock. Without Wi-Fi the meters are unknown and commands disabled.
+Expected: native Industrial Control panel with three draggable volume sliders, music transport, pack controls and Field Lock. Without Wi-Fi the meters are unknown and commands disabled.
 
 ## Direct telemetry (development only)
 
@@ -21,7 +21,7 @@ Run `idf.py menuconfig` and open **ProtonLink connection** to enter the Attenuat
 
 ## Experimental control (disabled by default)
 
-Enable **Enable experimental GPStar control** in menuconfig only on a controlled test rig. Hold the lock button to unlock; tap to lock. Hold START, STOP or VENT to request a pack action. Audio buttons use legacy volume step and transport routes. Commands run through a one-entry queue, fresh status check, and lock epoch; the next status sample is the authoritative display. A request already sent cannot be recalled. No automatic retries. Command acknowledgement and result display still need implementation; controls are not hardware validated. Do not enable experimental control for field use.
+Enable **Enable experimental GPStar control** in menuconfig only on a controlled test rig. Hold the lock button to unlock; tap to lock. Hold START, STOP or VENT to request a pack action. Drag a volume slider and release to request its target. The network task uses legacy volume step routes for all three channels, checking fresh reported volume after each successful HTTP request. It stops at the target, on overshoot, no observed progress, lock/link loss, rejection, or after 20 steps; the displayed value returns to reported telemetry. Only one request is active at a time. Music transport uses legacy routes. Commands run through a one-entry queue, fresh status check, and lock epoch; the next status sample is the authoritative display. A request already sent cannot be recalled. No automatic retries. Command acknowledgement and result display still need implementation; controls are not hardware validated. Do not enable experimental control for field use.
 
 ## Merge gates and next steps
 
