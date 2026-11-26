@@ -46,6 +46,15 @@ bool protonlink_decode(const char *json, protonlink_status_t *out)
         s.paused = cJSON_IsTrue(paused);
         const cJSON *track = cJSON_GetObjectItemCaseSensitive(root, "musicCurrent");
         s.track = cJSON_IsNumber(track) && track->valuedouble >= 0 && track->valuedouble <= 65535 && track->valuedouble == track->valueint ? track->valueint : -1;
+        const cJSON *first = cJSON_GetObjectItemCaseSensitive(root, "musicStart");
+        const cJSON *last = cJSON_GetObjectItemCaseSensitive(root, "musicEnd");
+        s.track_first = s.track_last = -1;
+        if (cJSON_IsNumber(first) && cJSON_IsNumber(last) &&
+            first->valuedouble >= 500 && last->valuedouble <= 4595 &&
+            first->valuedouble == first->valueint && last->valuedouble == last->valueint &&
+            first->valueint <= last->valueint) {
+            s.track_first = first->valueint; s.track_last = last->valueint;
+        }
         const cJSON *ramp = cJSON_GetObjectItemCaseSensitive(root, "ramping");
         s.transition_known = cJSON_IsBool(ramp);
         s.ramping = cJSON_IsTrue(ramp);
