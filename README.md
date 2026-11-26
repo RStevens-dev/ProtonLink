@@ -200,3 +200,6 @@ Batch 2 adds field setup, audio presets, favorites, playlists and local pack pro
 
 
 Batch 3 adds display finishes, adaptive telemetry-driven animations, startup, ambient mode, local session statistics and optional virtual hardware; see [visual identity](docs/IMMERSION.md).
+
+
+Experimental local read-only bridge: [live integration](docs/LIVE_INTEGRATION.md). Simulation remains the default.
