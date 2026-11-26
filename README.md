@@ -174,3 +174,8 @@ GPStar and Ghostbusters names identify compatibility and inspiration only. No af
 ## Contributing
 
 Open issues for layout, compatibility, feature proposals and reproducible bugs. Include simulator scenario, expected/actual behavior, firmware version if known and sanitized status fields. Do not publish credentials, private network details or device configuration secrets. Hardware changes require separate validation. Keep simulation and real transport explicitly separated.
+
+
+## Approved animated Field Lock faces
+
+Eleven selectable faces, with **PKE Scanner as the factory default**. See [Field Lock face documentation](docs/FIELD_FACES.md). Electronic Marquee includes a saved full-spectrum color wheel and saturation/brightness controls.

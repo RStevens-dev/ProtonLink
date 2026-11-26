@@ -2,6 +2,7 @@ import {initial,dispatch,canChangeStream} from './model.js';
 import {exchange,route,connect,status,sync} from './protocol.js';
 import {simulate,diff,defaults,readPreview} from './lab.js';
 import {volumeTarget,nextVolumeIntent,queueVolume,dueVolumes} from './volume.js';
+import {faces,DEFAULT_FACE,resolveFace,normalizeColor,hsv,radarContacts,needleWobble,wheelPick} from './faces.js';
 const open=()=>dispatch(initial(),{type:'unlock'});
 const check=(condition,message)=>{if(!condition)throw new Error(message)};
 export const cases=[
@@ -58,5 +59,13 @@ cases.push(
  ["Unsynced gateway HTTP returns empty status",()=>{check(JSON.stringify(sync(initial(),false)[1].body)==="{}","incorrect unsynced body")}],
  ["Volume serial command and confirmation are distinct from ACK",()=>{const x=exchange(open(),{type:"volume",channel:"master",value:90});const i=x.events.findIndex(e=>e.summary==="A_VOLUME_SET"),j=x.events.findIndex(e=>e.body?.status==="success"),k=x.events.findIndex(e=>e.summary==="A_VOLUME_SYNC");check(i>=0&&i<j&&j<k&&x.events[k].body[0]===90,"serial ordering")}],
  ["No fictional direct wand firing command",()=>{check(route(open(),{type:"firing",value:true})===null,"unexpected API")}]
+);
+cases.push(
+ ["Approved 11-face collection defaults to PKE",()=>{check(faces.length===11&&DEFAULT_FACE==="pke"&&resolveFace("obsolete")==="pke","face default")}],
+ ["Marquee color conversion and bounds",()=>{check(hsv({h:0,s:100,v:100})==="#ff0000"&&hsv({h:0,s:0,v:100})==="#ffffff"&&normalizeColor({v:0}).v===10,"color conversion")}],
+ ["Radar contacts stay in assigned quadrants",()=>{for(let t=0;t<120;t+=.25){const n=radarContacts(initial(),t);check(n[0].x<185&&n[0].y<215&&n[1].x>185&&n[1].y<215&&n[2].x<185&&n[2].y>215&&n[3].x>185&&n[3].y>215,"quadrant crossed")}}],
+ ["Offline radar contacts are gray",()=>{check(radarContacts({...initial(),online:false},0).every(n=>n.color==="#526059"),"stale status")}],
+ ["Higher power increases needle wobble envelope",()=>{check(needleWobble(0,1)===0&&Math.max(...Array.from({length:200},(_,i)=>Math.abs(needleWobble(5,i/20))))>Math.max(...Array.from({length:200},(_,i)=>Math.abs(needleWobble(1,i/20)))),"wobble")}],
+ ["Color wheel center is unsaturated",()=>{check(wheelPick(90,90,180).s===0&&wheelPick(173,90,180).s===100,"wheel mapping")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}
