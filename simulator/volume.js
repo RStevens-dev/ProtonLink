@@ -4,11 +4,11 @@ export const VOLUME_STEP=5;
 export const VOLUME_DEBOUNCE_MS=600;
 export const channels=["master","effects","music"];
 export function volumeTarget(value){return Math.max(0,Math.min(100,Math.round(value/VOLUME_STEP)*VOLUME_STEP))}
-export function nextVolumeIntent(channel,current,target){
+export function nextVolumeIntent(channel,current,target, incrementalMaster=false){
  if(!channels.includes(channel)||!Number.isFinite(current)||!Number.isFinite(target))return null;
  const desired=volumeTarget(target);
  if(current===desired)return null;
- if(channel==="master")return {type:"volume",channel,value:desired};
+ if(channel==="master"&&!incrementalMaster)return {type:"volume",channel,value:desired};
  const value=Math.max(0,Math.min(100,current+Math.sign(desired-current)*VOLUME_STEP));
  // An unaligned legacy reading can make the requested exact value unreachable.
  // Stop rather than overshoot and oscillate.

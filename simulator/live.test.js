@@ -75,3 +75,40 @@ test('live command validation uses fresh state, confirmations and bounded inputs
   assert.throws(()=>commandPath({...state,ramping:null},{type:'power',value:true,confirmed:true}));
   assert.equal(commandPath(state,{type:'power',value:true,confirmed:true}),'/pack/on');
 });
+
+test('legacy Super Hero power uses explicit on/off routes and preserves transition guards', () => {
+  const state = {...initial(), mode:'Super Hero', ramping:null};
+  const power = {type:'power',value:true,confirmed:true};
+  assert.equal(commandPath(state,power),'/pack/on');
+  assert.equal(commandPath({...state,pack:true},{...power,value:false}),'/pack/off');
+  assert.equal(commandPath({...state,pack:true},power),null);
+  for (const change of [{ramping:true},{firing:true},{temperature:'Venting'},{cyclotron:'Critical'}]) {
+    assert.throws(()=>commandPath({...state,...change},power));
+  }
+  assert.throws(()=>commandPath(state,{...power,confirmed:false}));
+});
+
+test('legacy master steps and stream eligibility use observed state', () => {
+  const s={...initial(),pack:true,mode:'Super Hero',ramping:null,vgMode:null,master:40};
+  assert.equal(commandPath(s,{type:'volume',channel:'master',value:45,incremental:true}),'/volume/master/up');
+  assert.equal(commandPath(s,{type:'volume',channel:'master',value:35,incremental:true}),'/volume/master/down');
+  assert.equal(commandPath(s,{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
+  for(const change of [{ramping:true},{vgMode:false},{firing:true},{pack:false}]) {
+    assert.throws(()=>commandPath({...s,...change},{type:'stream',value:'Stasis'}));
+  }
+});
+
+import {nextVolumeIntent} from './volume.js';
+test('live master slider replans each step from the reported value', () => {
+  for (const [current,target,expected] of [[30,45,35],[35,45,40],[40,45,45],[50,45,45]]) {
+    assert.equal(nextVolumeIntent('master',current,target,true).value,expected);
+  }
+  assert.equal(nextVolumeIntent('master',45,45,true),null);
+});
+
+test('legacy year changes require idle equipment',()=>{
+ const idle={...initial(),mode:'Super Hero',ramping:null,pack:false,wandPower:false};
+ const year={type:'theme',value:'1989'};
+ assert.equal(commandPath(idle,year),'/pack/theme/1989');
+ for(const change of [{pack:true},{wandPower:true},{ramping:true},{firing:true}])assert.throws(()=>commandPath({...idle,...change},year));
+});
