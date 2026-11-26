@@ -42,6 +42,7 @@ jobs:
         run: |
           mkdir -p _site
           cp simulator/index.html simulator/model.js simulator/cases.js simulator/protocol.js _site/
+          if [ -f assets/branding/ProtonLink.png ]; then cp assets/branding/ProtonLink.png _site/branding.png; fi
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
