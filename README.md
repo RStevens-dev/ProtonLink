@@ -189,3 +189,5 @@ Use Development Tools → Track library or Music → Library → Manage names on
 ## Industrial Quick Control
 
 Settings → Main screen → Industrial Quick Control. Three themed horizontal volume adjusters, guarded START/STOP/VENT, status area opens menu, tap lights toggles PKE, hold lights for 1.5 seconds engages Field Lock. See [Quick Control](docs/QUICK_CONTROL.md).
+
+Industrial Quick Control also includes an auxiliary transport module with named track readout, start/stop, pause/resume, previous/next and direct track library access.
