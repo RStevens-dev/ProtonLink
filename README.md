@@ -179,3 +179,8 @@ Open issues for layout, compatibility, feature proposals and reproducible bugs. 
 ## Approved animated Field Lock faces
 
 Eleven selectable faces, with **PKE Scanner as the factory default**. See [Field Lock face documentation](docs/FIELD_FACES.md). Electronic Marquee includes a saved full-spectrum color wheel and saturation/brightness controls.
+
+
+## Track library manager
+
+Use Development Tools → Track library or Music → Library → Manage names on phone / computer. Automatic simulated GPStar `songList` synchronization, local overrides, TXT/CSV/JSON/M3U and numbered audio filename imports, mapping preview and JSON export. See [Track library](docs/TRACK_LIBRARY.md). Browser-local storage only; native Wi-Fi configuration portal and QR provisioning remain future firmware work.

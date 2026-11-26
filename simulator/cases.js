@@ -1,3 +1,4 @@
+import {fromDevice,trackTitle,importTracks,fromFilenames,escapeHTML} from './library.js';
 import {initial,dispatch,canChangeStream} from './model.js';
 import {exchange,route,connect,status,sync} from './protocol.js';
 import {simulate,diff,defaults,readPreview} from './lab.js';
@@ -67,5 +68,15 @@ cases.push(
  ["Offline radar contacts are gray",()=>{check(radarContacts({...initial(),online:false},0).every(n=>n.color==="#526059"),"stale status")}],
  ["Higher power increases needle wobble envelope",()=>{check(needleWobble(0,1)===0&&Math.max(...Array.from({length:200},(_,i)=>Math.abs(needleWobble(5,i/20))))>Math.max(...Array.from({length:200},(_,i)=>Math.abs(needleWobble(1,i/20)))),"wobble")}],
  ["Color wheel center is unsaturated",()=>{check(wheelPick(90,90,180).s===0&&wheelPick(173,90,180).s===100,"wheel mapping")}]
+);
+cases.push(
+ ["GPStar names preserve blank track positions",()=>{const m=fromDevice({songList:"A\n\nC"},500,520);check(m[500]==="A"&&m[501]===""&&m[502]==="C","track shift")}],
+ ["Missing names fall back without altering playback IDs",()=>{check(fromDevice({},500,520)===null&&trackTitle({}, {},502,500)==="Track 3","fallback")}],
+ ["Local metadata overrides synchronized names",()=>{check(trackTitle({500:"Local"},{500:"Remote"},500,500)==="Local","precedence")}],
+ ["CSV explicit IDs and quoted commas",()=>{const m=importTracks('id,title\n502,"A, B"', "x.csv",500,520);check(m[502]==="A, B","CSV mapping")}],
+ ["M3U imports EXTINF and filename fallback",()=>{const m=importTracks("#EXTM3U\n#EXTINF:20,Theme\nsong.wav\nother.mp3","x.m3u",500,520);check(m[500]==="Theme"&&m[501]==="other","M3U mapping")}],
+ ["Numbered audio filenames preserve real IDs",()=>{const m=fromFilenames(["503 Theme.wav","500 Intro.wav"],500,520);check(m[503]==="Theme"&&m[500]==="Intro","filename mapping")}],
+ ["Out of range and duplicate imports are rejected",()=>{for(const data of ['[{"id":521,"title":"A"}]','[{"id":500,"title":"A"},{"id":500,"title":"B"}]']){let failed=false;try{importTracks(data,"x.json",500,520)}catch{failed=true}check(failed,"invalid accepted")}}],
+ ["Imported names cannot inject watch HTML",()=>{check(escapeHTML('<img onerror="x">')==="&lt;img onerror=&quot;x&quot;&gt;","HTML escape")}]
 );
 export function runCases(){return cases.map(([name,fn])=>{try{fn();return {name,pass:true}}catch(e){return {name,pass:false,error:e.message}}})}

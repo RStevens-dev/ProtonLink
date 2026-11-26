@@ -1,0 +1,18 @@
+// Track metadata is local; playback IDs remain authoritative.
+export const MAX_TRACK=4595,MIN_TRACK=500;
+export const validRange=(first,last)=>Number.isInteger(first)&&Number.isInteger(last)&&first>=MIN_TRACK&&last<=MAX_TRACK&&last>=first;
+const clean=v=>typeof v==="string"?v.trim().slice(0,180):"";
+export function validateEntries(entries){if(!Array.isArray(entries))throw Error("Expected an array of tracks");const out={};for(const e of entries){if(!e||!Number.isInteger(e.id)||e.id<MIN_TRACK||e.id>MAX_TRACK)throw Error("Invalid track ID");if(Object.hasOwn(out,e.id))throw Error("Duplicate track ID "+e.id);if(typeof e.title!=="string")throw Error("Invalid title for "+e.id);out[e.id]=clean(e.title)}return out}
+export function sequential(text,first,last=MAX_TRACK){if(!validRange(first,last))throw Error("Invalid track range");const lines=String(text).replace(/^\uFEFF/,"").split(/\r\n|\n|\r/);if(lines.at(-1)==="")lines.pop();if(lines.length>last-first+1)throw Error("More names than available track IDs");return Object.fromEntries(lines.map((v,i)=>[first+i,clean(v)]))}
+export function fromDevice(config,first,last){if(typeof config?.songList!=="string"||!config.songList.trim())return null;return sequential(config.songList,first,last)}
+export const trackTitle=(local,synced,id,first)=>clean(local?.[id])||clean(synced?.[id])||"Track "+(id-first+1);
+export const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+export function parseCSV(text){const rows=[];let row=[],cell="",quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'&&text[i+1]==='"'){cell+='"';i++}else if(c==='"')quoted=false;else cell+=c}else if(c==='"'&&cell==="")quoted=true;else if(c===","){row.push(cell);cell=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(cell);rows.push(row);row=[];cell=""}else cell+=c}if(quoted)throw Error("Unclosed CSV quote");if(cell||row.length){row.push(cell);rows.push(row)}return rows}
+export function importTracks(text,filename,first,last){if(!validRange(first,last))throw Error("Invalid track range");if(text.length>1000000)throw Error("File exceeds 1 MB");text=text.replace(/^\uFEFF/,"");const ext=filename.toLowerCase().split(".").pop();let map;
+if(ext==="json"){const data=JSON.parse(text);map=validateEntries(Array.isArray(data)?data:data.tracks)}
+else if(ext==="csv"){const rows=parseCSV(text);if(rows.length&&rows[0][0].trim().toLowerCase()==="id")rows.shift();map=validateEntries(rows.filter(r=>r.some(c=>c.trim())).map(r=>{if(r.length!==2)throw Error("CSV requires ID and title columns");return {id:Number(r[0]),title:r[1]}}))}
+else if(ext==="m3u"||ext==="m3u8"){let names=[],pending=null;for(const line of text.split(/\r?\n/)){const v=line.trim();if(v.startsWith("#EXTINF:")){pending=v.includes(",")?v.slice(v.indexOf(",")+1):null;continue}if(!v||v.startsWith("#"))continue;names.push(pending||v.split(/[\\/]/).at(-1).replace(/\.[^.]+$/,""));pending=null}map=sequential(names.join("\n"),first,last)}
+else if(ext==="txt")map=sequential(text,first,last);else throw Error("Use TXT, CSV, JSON, M3U or M3U8");
+for(const id of Object.keys(map))if(+id<first||+id>last)throw Error("Track "+id+" outside active range");return map}
+export function fromFilenames(names,first,last){const entries=names.map(n=>{const name=n.split(/[\\/]/).at(-1);const m=name.match(/^(\d+)[ _.-]*(.*)\.(wav|mp3|ogg|flac|m4a)$/i);if(!m)throw Error("Filename must begin with its actual track ID: "+name);return {id:Number(m[1]),title:m[2]||"Track "+m[1]}});return importTracks(JSON.stringify(entries),"tracks.json",first,last)}
+export const entriesOf=map=>Object.entries(map||{}).map(([id,title])=>({id:Number(id),title})).sort((a,b)=>a.id-b.id);
