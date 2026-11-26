@@ -12,7 +12,15 @@
 static lv_obj_t *status_label, *telemetry_label, *lock_label;
 static lv_obj_t *quick, *field, *monitor, *menu, *library, *clock_label, *field_clock, *monitor_clock;
 static lv_obj_t *field_progress, *dot_progress, *pack_progress[3], *leds[3][20], *radar_dot[2], *monitor_state, *field_state, *library_track;
-static lv_obj_t *dot_button, *monitor_dots;
+static lv_obj_t *dot_button, *monitor_dots, *monitor_progress, *library_rows[7], *library_names[7], *library_prev, *library_next, *transport_light;
+static lv_obj_t *active_page;
+static int library_offset, library_first=-1, library_last=-1, library_current=-1;
+static uint32_t volume_due[3];
+static int volume_target[3];
+static bool volume_pending[3];
+static uint32_t notice_at;
+static const char *notice;
+static void update_library(void);
 static bool field_locked=true, unlock_armed, released, gesture_active, gesture_done;
 static uint32_t gesture_start, armed_at;
 static lv_point_t gesture_origin;
@@ -37,14 +45,13 @@ static void slider_event(lv_event_t *event)
     if (code==LV_EVENT_RELEASED && dragging[i]) {
         dragging[i]=false;
         int target=(int)lv_slider_get_value(levels[i]);
-        if (ui_online && pl_is_unlocked() && !pl_busy()) pl_request_volume(i,target);
+        if (ui_online && pl_is_unlocked()) { volume_target[i]=target; volume_pending[i]=true; volume_due[i]=lv_tick_get(); }
     }
 }
 static void command(lv_event_t *event)
 {
     pl_action_t a = (pl_action_t)(intptr_t)lv_event_get_user_data(event);
-    if (!pl_request(a)) lv_label_set_text(status_label, "REQUEST BLOCKED / BUSY");
-    else lv_label_set_text(status_label, "REQUEST QUEUED");
+    notice=pl_request(a)?"REQUEST QUEUED":"REQUEST BLOCKED / BUSY"; notice_at=lv_tick_get();
 }
 static void update_leds(int channel,int value)
 {
@@ -53,6 +60,7 @@ static void update_leds(int channel,int value)
 }
 static void show_page(lv_obj_t *page)
 {
+    active_page=page;
     lv_obj_t *pages[]={quick,field,monitor,menu,library};
     for(unsigned i=0;i<sizeof(pages)/sizeof(pages[0]);i++) {
         if(pages[i]==page) lv_obj_remove_flag(pages[i],LV_OBJ_FLAG_HIDDEN);
@@ -63,6 +71,7 @@ static void engage_lock(void)
 {
     pl_set_unlocked(false); field_locked=true; unlock_armed=false; released=false;
     gesture_active=false; gesture_done=true;
+    for(int i=0;i<3;i++) { volume_pending[i]=false; dragging[i]=false; }
     lv_bar_set_value(field_progress,0,LV_ANIM_OFF);
     lv_label_set_text(lock_label,"HOLD TO UNLOCK");
     show_page(field);
@@ -70,7 +79,9 @@ static void engage_lock(void)
 static void nav_event(lv_event_t *e)
 {
     if(field_locked) return;
-    show_page(lv_event_get_user_data(e));
+    lv_obj_t *dest=lv_event_get_user_data(e);
+    if(dest==library) { library_offset=library_current>=library_first?(library_current-library_first)/7*7:0; update_library(); }
+    show_page(dest);
 }
 static void point_now(lv_point_t *p)
 {
@@ -113,6 +124,7 @@ static void gesture_tick(lv_timer_t *timer)
     if(!gesture_active) {
         if(!unlock_armed) lv_bar_set_value(field_progress,0,LV_ANIM_OFF);
         lv_bar_set_value(dot_progress,0,LV_ANIM_OFF);
+        lv_bar_set_value(monitor_progress,0,LV_ANIM_OFF);
         for(int i=0;i<3;i++) lv_bar_set_value(pack_progress[i],0,LV_ANIM_OFF);
         return;
     }
@@ -122,6 +134,7 @@ static void gesture_tick(lv_timer_t *timer)
     int progress=elapsed>=threshold?100:(int)(elapsed*100/threshold);
     if(a==G_FIELD && !unlock_armed) lv_bar_set_value(field_progress,progress,LV_ANIM_OFF);
     else if(a==G_DOTS) lv_bar_set_value(dot_progress,progress,LV_ANIM_OFF);
+    else if(a==G_MONITOR) lv_bar_set_value(monitor_progress,progress,LV_ANIM_OFF);
     else if(a>=0) lv_bar_set_value(pack_progress[a],progress,LV_ANIM_OFF);
     if(gesture_done || elapsed<threshold) return;
     gesture_done=true;
@@ -129,8 +142,7 @@ static void gesture_tick(lv_timer_t *timer)
         if(!unlock_armed && ui_online) { unlock_armed=true; released=false; armed_at=lv_tick_get(); lv_label_set_text(lock_label,"RELEASE, THEN SWIPE LEFT"); }
     } else if(a<0) engage_lock();
     else if(pl_is_unlocked() && !pl_busy()) {
-        if(!pl_request((pl_action_t)a)) lv_label_set_text(status_label,"REQUEST BLOCKED");
-        else lv_label_set_text(status_label,"REQUEST QUEUED");
+        notice=pl_request((pl_action_t)a)?"REQUEST QUEUED":"REQUEST BLOCKED"; notice_at=lv_tick_get();
     }
 }
 static void refresh(lv_timer_t *timer)
@@ -141,6 +153,9 @@ static void refresh(lv_timer_t *timer)
     if (!ui_online && (!field_locked || unlock_armed || gesture_active)) engage_lock();
     bool armed = ui_online && pl_is_unlocked();
     bool busy=pl_busy();
+    for(int i=0;i<3;i++) if(volume_pending[i] && !dragging[i] && lv_tick_elaps(volume_due[i])>=600 && armed && !busy) {
+        volume_pending[i]=false; notice=pl_request_volume(i,volume_target[i])?"VOLUME REQUEST QUEUED":"VOLUME UNCHANGED / BLOCKED"; notice_at=lv_tick_get(); busy=pl_busy(); break;
+    }
     if(!field_locked && !armed && ui_online) {
 #if defined(CONFIG_PROTONLINK_ENABLE_CONTROL) || defined(PROTONLINK_DESKTOP)
         engage_lock();
@@ -153,19 +168,21 @@ static void refresh(lv_timer_t *timer)
     lv_label_set_text(field_state,ui_online?"TRACKING EQUIPMENT":"TELEMETRY UNAVAILABLE");
     lv_label_set_text(monitor_state,ui_online?"TRACKING EQUIPMENT":"TELEMETRY UNAVAILABLE");
 #if defined(CONFIG_PROTONLINK_ENABLE_CONTROL) || defined(PROTONLINK_DESKTOP)
-    lv_label_set_text(status_label, armed ? (busy ? "SYNCING" : "Adjust volume") : "FIELD LOCK");
+    lv_label_set_text(status_label, armed ? (busy ? "SYNCING" : notice && lv_tick_elaps(notice_at)<2500 ? notice : "Adjust volume / 0.6s idle") : "FIELD LOCK");
 #else
     lv_label_set_text(status_label, "READ ONLY");
 #endif
     if (ui_online) {
         lv_label_set_text(telemetry_label,s.firing?"FIRING":!strcmp(s.temperature,"Venting")?"VENT CYCLE":!strcmp(s.cyclotron,"Warning")?"WARNING":!strcmp(s.cyclotron,"Critical")?"CRITICAL":!strcmp(s.cyclotron,"Recovery")?"RECOVERY":s.pack_on?"SYSTEM ONLINE":"SYSTEM STANDBY");
-        if(s.track>=500 && s.track_first>=500) lv_label_set_text_fmt(track_label,"%d   Track %d   >",s.track,s.track-s.track_first+1);
+        if(s.track>=s.track_first && s.track_first>=500 && s.track<=s.track_last) lv_label_set_text_fmt(track_label,"%d   Track %d   >",s.track,s.track-s.track_first+1);
         else lv_label_set_text(track_label,"TRACK UNAVAILABLE");
         lv_label_set_text(library_track,lv_label_get_text(track_label));
+        library_first=s.track_first; library_last=s.track_last; library_current=s.track; update_library();
+        lv_obj_set_style_bg_color(transport_light,lv_color_hex(s.paused?0xe6b75e:s.playing?0x8bd89f:0x303d36),0);
         for(int i=0;i<4;i++) { uint32_t c=s.pack_on && i==(int)((lv_tick_get()/250)%4)?0xff5949:0x452622; lv_obj_set_style_bg_color(dots[i],lv_color_hex(c),0); lv_obj_set_style_bg_color(lv_obj_get_child(monitor_dots,i),lv_color_hex(c),0); }
         int v[] = {s.master,s.effects,s.music};
         for (int i=0;i<3;i++) {
-            if (!dragging[i] || !armed || busy) {
+            if ((!dragging[i] && !volume_pending[i]) || !armed) {
                 dragging[i]=false;
                 lv_slider_set_value(levels[i],v[i],LV_ANIM_OFF);
                 lv_label_set_text_fmt(level_labels[i],"%d",v[i]); update_leds(i,v[i]);
@@ -177,7 +194,9 @@ static void refresh(lv_timer_t *timer)
     } else {
         lv_label_set_text(telemetry_label,"LINK LOST");
         lv_label_set_text(track_label,"---  /  NO LINK");
-        for(int i=0;i<4;i++) lv_obj_set_style_bg_color(dots[i],lv_color_hex(0x452622),0);
+        library_first=library_last=library_current=-1; update_library();
+        lv_obj_set_style_bg_color(transport_light,lv_color_hex(0x303d36),0);
+        for(int i=0;i<4;i++) { lv_obj_set_style_bg_color(dots[i],lv_color_hex(0x452622),0); lv_obj_set_style_bg_color(lv_obj_get_child(monitor_dots,i),lv_color_hex(0x452622),0); }
         for (int i=0;i<3;i++) {
             dragging[i]=false;
             lv_slider_set_value(levels[i],0,LV_ANIM_OFF);
@@ -220,6 +239,31 @@ static void action_button(lv_obj_t *parent,pl_action_t a,const char *text,int wi
     lv_obj_add_event_cb(buttons[a],a<=PL_VENT?gesture_event:command,a<=PL_VENT?LV_EVENT_ALL:LV_EVENT_CLICKED,(void *)(intptr_t)a);
     lv_obj_add_state(buttons[a],LV_STATE_DISABLED);
     lv_obj_set_style_text_color(buttons[a],lv_color_hex(a<=PL_VENT?switch_color[a]:a==PL_PLAY_STOP?0x8bd89f:a==PL_PAUSE_RESUME?0xe6b75e:0x78cfff),0);
+}
+static void update_library(void)
+{
+    bool valid=library_first>=500 && library_last>=library_first && library_last<=4595;
+    if(!valid || library_offset<0 || library_first+library_offset>library_last) library_offset=0;
+    for(int i=0;i<7;i++) {
+        int id=library_first+library_offset+i;
+        if(!valid || id>library_last) lv_obj_add_flag(library_rows[i],LV_OBJ_FLAG_HIDDEN);
+        else {
+            lv_obj_remove_flag(library_rows[i],LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text_fmt(library_names[i],"%s %02d    Track %d    %d",id==library_current?">":" ",id-library_first+1,id-library_first+1,id);
+            if(pl_is_unlocked() && !pl_busy()) lv_obj_remove_state(library_rows[i],LV_STATE_DISABLED);
+            else lv_obj_add_state(library_rows[i],LV_STATE_DISABLED);
+        }
+    }
+    if(valid && library_offset>0) lv_obj_remove_state(library_prev,LV_STATE_DISABLED); else lv_obj_add_state(library_prev,LV_STATE_DISABLED);
+    if(valid && library_first+library_offset+7<=library_last) lv_obj_remove_state(library_next,LV_STATE_DISABLED); else lv_obj_add_state(library_next,LV_STATE_DISABLED);
+}
+static void library_event(lv_event_t *e)
+{
+    int i=(int)(intptr_t)lv_event_get_user_data(e);
+    if(i==-1 || i==-2) { library_offset+=i==-1?-7:7; update_library(); return; }
+    if(!field_locked && ui_online && pl_request_track(library_first+library_offset+i)) {
+        notice="TRACK REQUEST QUEUED"; notice_at=lv_tick_get(); show_page(quick);
+    }
 }
 static lv_obj_t *line(lv_obj_t *screen,int height)
 {
@@ -391,6 +435,7 @@ void protonlink_ui_create(void)
     lv_label_set_text(aux,"AUX TRANSPORT / CH-03");
     lv_obj_set_style_text_font(aux,&lv_font_montserrat_12,0);
     lv_obj_set_style_text_color(aux,lv_color_hex(0xa4b1a9),0);
+    transport_light=lv_obj_create(transport); lv_obj_remove_style_all(transport_light); lv_obj_set_size(transport_light,10,10); lv_obj_set_style_radius(transport_light,LV_RADIUS_CIRCLE,0); lv_obj_set_style_bg_opa(transport_light,LV_OPA_COVER,0);
     lv_obj_t *track_button=make_button(screen,"TRACK UNAVAILABLE",386,26,&track_label);
     lv_obj_add_event_cb(track_button,nav_event,LV_EVENT_CLICKED,library);
     lv_obj_set_size(track_label,370,22);
@@ -434,6 +479,7 @@ void protonlink_ui_create(void)
     lv_obj_add_event_cb(field,gesture_event,LV_EVENT_ALL,(void *)(intptr_t)G_FIELD);
     label_at(monitor,"PROTONLINK",20,17,0xd2d6cd);
     monitor_dots=make_dots(monitor); lv_obj_set_pos(monitor_dots,280,10);
+    monitor_progress=progress_at(monitor_dots,100,0,0xe6b75e);
     lv_obj_add_event_cb(monitor_dots,gesture_event,LV_EVENT_ALL,(void *)(intptr_t)G_MONITOR);
     label_at(monitor,"PKE MONITOR / TAP LIGHTS TO RETURN",35,465,0xe6b75e);
     label_at(menu,"COMMAND / SUBSYSTEMS",25,24,0xd2d6cd);
@@ -443,7 +489,14 @@ void protonlink_ui_create(void)
     label_at(library,"AUX TRACK DATABASE",25,24,0xd2d6cd);
     lv_obj_t *return_button=make_button(library,"RETURN TO FIELD CONTROL",350,48,NULL); lv_obj_set_pos(return_button,30,65); lv_obj_add_event_cb(return_button,nav_event,LV_EVENT_CLICKED,quick);
     library_track=label_at(library,"TRACK UNAVAILABLE",30,145,0x8bd89f);
-    label_at(library,"Track selection not available yet",30,190,0xa4b1a9);
+    for(int i=0;i<7;i++) {
+        library_rows[i]=make_button(library,"",350,36,&library_names[i]); lv_obj_set_pos(library_rows[i],30,180+i*39);
+        lv_obj_add_event_cb(library_rows[i],library_event,LV_EVENT_CLICKED,(void *)(intptr_t)i);
+    }
+    library_prev=make_button(library,"PREVIOUS PAGE",170,34,NULL); lv_obj_set_pos(library_prev,30,457);
+    library_next=make_button(library,"NEXT PAGE",170,34,NULL); lv_obj_set_pos(library_next,210,457);
+    lv_obj_add_event_cb(library_prev,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)-1);
+    lv_obj_add_event_cb(library_next,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)-2);
     engage_lock();
     lv_timer_create(gesture_tick,20,NULL);
     refresh(NULL);
