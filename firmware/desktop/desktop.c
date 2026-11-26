@@ -3,6 +3,7 @@
 #include "src/drivers/sdl/lv_sdl_mouse.h"
 #include "ui.h"
 #include "mock.h"
+#include "control.h"
 #include <SDL.h>
 #include <stdbool.h>
 #include <string.h>
@@ -18,6 +19,20 @@ static void smoke_flush(lv_display_t *display, const lv_area_t *area, uint8_t *p
     ++smoke_flushes;
     lv_display_flush_ready(display);
 }
+static lv_point_t touch_point;
+static bool touch_pressed;
+static void smoke_read(lv_indev_t *indev,lv_indev_data_t *data)
+{
+    (void)indev; data->point=touch_point; data->state=touch_pressed?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;
+}
+static void advance(unsigned ms)
+{
+    for(unsigned t=0;t<ms;t+=5) { lv_tick_inc(5); lv_timer_handler(); }
+}
+static void touch(int x,int y,bool pressed,unsigned ms)
+{
+    touch_point=(lv_point_t){x,y}; touch_pressed=pressed; advance(ms);
+}
 static int run_smoke(void)
 {
     lv_init();
@@ -26,13 +41,19 @@ static int run_smoke(void)
     lv_display_set_buffers(display, smoke_buffer, NULL, sizeof(smoke_buffer), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, smoke_flush);
     protonlink_ui_create();
-    for (unsigned elapsed = 0; elapsed < 2000; elapsed += 5) {
-        if (elapsed == 500) mock_scenario(0);
-        if (elapsed == 1000) mock_scenario(2);
-        if (elapsed == 1500) mock_scenario(3);
-        lv_tick_inc(5);
-        lv_timer_handler();
-    }
+    lv_indev_t *pointer=lv_indev_create();
+    lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(pointer,smoke_read);
+    lv_indev_set_display(pointer,display);
+    advance(100);
+    if(pl_is_unlocked()) return 1;
+    touch(205,250,true,2200); touch(205,250,false,100);
+    touch(300,250,true,100); touch(160,250,true,100); touch(160,250,false,300);
+    if(!pl_is_unlocked()) { fprintf(stderr,"Field Lock hold/swipe failed\n"); return 1; }
+    mock_scenario(0); advance(300);
+    if(pl_is_unlocked()) { fprintf(stderr,"Link loss did not lock controls\n"); return 1; }
+    mock_scenario(2); advance(300);
+    mock_scenario(3); advance(300);
     if (!smoke_flushes) {
         fprintf(stderr, "Smoke test did not render any frames\n");
         return 1;
