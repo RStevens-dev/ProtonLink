@@ -3,8 +3,20 @@
 #include "lvgl.h"
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
+#include "telemetry.h"
 
 static lv_obj_t *status_label;
+static lv_obj_t *telemetry_label;
+static void refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    protonlink_status_t s;
+    if (!protonlink_snapshot(&s)) {
+        lv_label_set_text(telemetry_label, "GPStar offline / stale");
+        return;
+    }
+    lv_label_set_text_fmt(telemetry_label, "Pack: %s | %s\nMaster: %d%%  FX: %d%%  Music: %d%%\n%s / %s", s.pack_on ? "ON" : "OFF", s.firing ? "FIRING" : "IDLE", s.master, s.effects, s.music, s.temperature, s.cyclotron);
+}
 static void touch_test(lv_event_t *event)
 {
     (void)event;
@@ -38,5 +50,11 @@ void app_main(void)
     lv_label_set_text(label, "TEST TOUCH");
     lv_obj_center(label);
     lv_obj_add_event_cb(button, touch_test, LV_EVENT_CLICKED, NULL);
+    telemetry_label = lv_label_create(screen);
+    lv_obj_set_style_text_color(telemetry_label, lv_color_hex(0xE5E7EB), 0);
+    lv_obj_set_style_text_align(telemetry_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(telemetry_label, "GPStar offline / stale");
+    lv_timer_create(refresh, 500, NULL);
     bsp_display_unlock();
+    protonlink_network_start();
 }
