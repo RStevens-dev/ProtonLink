@@ -194,3 +194,6 @@ Industrial Quick Control also includes an auxiliary transport module with named 
 
 
 Development batches use feature branches and pull requests into develop. See [development workflow](docs/DEVELOPMENT.md).
+
+
+Batch 2 adds field setup, audio presets, favorites, playlists and local pack profiles; see [field functionality](docs/FIELD_SETUP.md).
