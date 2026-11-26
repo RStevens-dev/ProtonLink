@@ -37,5 +37,9 @@ int main(void) {
     assert(!pl_volume_step(&s,3,50));
     assert(!pl_volume_step(&s,0,101));
     s.online=false; assert(!pl_volume_step(&s,0,75));
+    s.online=true; s.track_first=500; s.track_last=550;
+    assert(pl_track_allowed(&s,500)); assert(pl_track_allowed(&s,550));
+    assert(!pl_track_allowed(&s,499)); assert(!pl_track_allowed(&s,551));
+    s.online=false; assert(!pl_track_allowed(&s,500));
     return 0;
 }
