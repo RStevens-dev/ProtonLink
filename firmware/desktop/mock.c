@@ -39,3 +39,8 @@ void mock_scenario(int scenario){
     if(!state.online)unlocked=false;
     strcpy(state.cyclotron,scenario==3?"Critical":"Normal");
 }
+
+bool pl_request_track(int track) {
+    if(!unlocked || !pl_track_allowed(&state,track)) return false;
+    state.track=track; return true;
+}
