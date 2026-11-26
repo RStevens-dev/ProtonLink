@@ -13,17 +13,21 @@ idf.py build
 idf.py -p YOUR_PORT flash monitor
 ```
 
-Expected: PROTONLINK, OFFLINE | FIELD LOCK, and TEST TOUCH. Tapping changes the status to Touch OK | FIELD LOCK. Equipment commands are not implemented. Optional direct Wi-Fi telemetry is read-only.
+Expected: native Industrial Control panel with three volume meters and step buttons, music transport, pack controls and Field Lock. Without Wi-Fi the meters are unknown and commands disabled.
 
 ## Direct telemetry (development only)
 
-Run `idf.py menuconfig` and open **ProtonLink connection** to enter the Attenuator Wi-Fi SSID, password and its actual `/status` HTTP URL. Leave SSID blank for offline display testing. Do not commit a generated sdkconfig or share firmware images containing real Wi-Fi credentials. This build-time configuration is temporary; production provisioning must use device-local storage. The watch polls every two seconds and expires stale readings; no PUT requests are implemented. HTTP is unencrypted, so use a trusted isolated Attenuator network.
+Run `idf.py menuconfig` and open **ProtonLink connection** to enter the Attenuator Wi-Fi SSID, password and its actual `/status` HTTP URL. Leave SSID blank for offline display testing. Do not commit a generated sdkconfig or share firmware images containing real Wi-Fi credentials. This build-time configuration is temporary; production provisioning must use device-local storage. The watch polls every two seconds and expires stale readings; the default build never sends PUT requests. HTTP is unencrypted, so use a trusted isolated Attenuator network.
+
+## Experimental control (disabled by default)
+
+Enable **Enable experimental GPStar control** in menuconfig only on a controlled test rig. Hold the lock button to unlock; tap to lock. Hold START, STOP or VENT to request a pack action. Audio buttons use legacy volume step and transport routes. Commands run through a one-entry queue, fresh status check, and lock epoch; the next status sample is the authoritative display. A request already sent cannot be recalled. No automatic retries. Command acknowledgement and result display still need implementation; controls are not hardware validated. Do not enable experimental control for field use.
 
 ## Merge gates and next steps
 
 - CI compilation; then flash on the actual Waveshare board and check boot, display, touch and reboot.
 - Verify direct read-only status and reconnect on hardware; replace build-time credentials with device-local provisioning.
-- Add native telemetry model and stale-state lock; port Industrial Control and validate each command on GPStar V1.
+- Verify the native Industrial Control layout and touch gestures; add explicit command outcomes, on-device provisioning and test every command on GPStar V1.
 - Integrate battery/charging, dimming, sleep/wake and OTA only after board validation.
 - Record board revision and installed pack/wand/Attenuator firmware versions.
 
