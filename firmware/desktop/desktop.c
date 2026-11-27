@@ -41,12 +41,72 @@ static lv_obj_t *find_visible_button(lv_obj_t *obj,const char *name)
         if(child && lv_obj_check_type(child,&lv_label_class) &&
            !strcmp(lv_label_get_text(child),name)) return obj;
     }
-    for(uint32_t i=0;i<lv_obj_get_child_count(obj);i++) {
-        lv_obj_t *found=find_visible_button(lv_obj_get_child(obj,i),name);
+    for(uint32_t i=lv_obj_get_child_count(obj);i>0;i--) {
+        lv_obj_t *found=find_visible_button(lv_obj_get_child(obj,i-1),name);
         if(found) return found;
     }
     return NULL;
 }
+static bool press_button(const char *name, unsigned duration)
+{
+    lv_obj_t *button=find_visible_button(lv_screen_active(),name);
+    if(!button) {
+        fprintf(stderr,"Missing visible button: %s\n",name);
+        return false;
+    }
+    lv_area_t area;
+    lv_obj_get_coords(button,&area);
+    int x=(area.x1+area.x2)/2, y=(area.y1+area.y2)/2;
+    touch(x,y,true,duration);
+    touch(x,y,false,350);
+    return true;
+}
+
+static bool check_menus(void)
+{
+    protonlink_status_t s;
+    if(!press_button("SYSTEM STANDBY",100) || !press_button("PACK",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    lv_obj_t *vent=find_visible_button(lv_screen_active(),"MANUAL VENT");
+    if(!vent || !lv_obj_has_state(vent,LV_STATE_DISABLED)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    lv_obj_t *label=lv_obj_get_child(vent,0);
+    lv_color_t base=lv_obj_get_style_text_color(label,LV_PART_MAIN);
+    lv_color_t filtered=lv_obj_get_style_text_color_filtered(label,LV_PART_MAIN);
+    uint8_t gray=lv_color_luminance(base);
+    if(!lv_color_eq(filtered,lv_color_make(gray,gray,gray))) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    if(!press_button("MANUAL VENT",1200) || !protonlink_snapshot(&s) ||
+       strcmp(s.temperature,"Normal")) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    if(!press_button("STARTUP CHECK",100) || !press_button("BACK",100) ||
+       !press_button("BACK",100) || !press_button("STATUS",100) || !press_button("BACK",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+
+    if(!press_button("MUSIC",100) || !press_button("START",100) ||
+       !press_button("PAUSE",100) || !protonlink_snapshot(&s) || !s.playing || !s.paused) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    if(!press_button("RESUME",100) || !press_button("TRACK LIBRARY",100) ||
+       !press_button("NEXT PAGE",100) || !press_button("PREVIOUS PAGE",100) ||
+       !press_button("STAR CURRENT",100) || !press_button("ALL TRACKS",100) ||
+       !find_visible_button(lv_screen_active(),"FAVORITES") ||
+       !press_button("> 01    Track 1    500  *",100) ||
+       !press_button("TRACK LIBRARY",100) || !press_button("  02    Track 2    501",100) ||
+       !press_button("STOP",100) || !protonlink_snapshot(&s) || s.playing || s.track!=501) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+
+    if(!press_button("BACK",100) || !press_button("MIXER",100) ||
+       !press_button("AUDIO PRESETS",100) || !press_button("QUIET   20 / 25 / 15",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    advance(1200);
+    if(!protonlink_snapshot(&s) || s.master!=20 || s.effects!=25 || s.music!=15) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    if(!press_button("TEMPORARY 50% AUDIO REDUCTION",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    advance(1200);
+    if(!press_button("RESTORE PREVIOUS AUDIO",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    advance(1200);
+    if(!protonlink_snapshot(&s) || s.master!=20 || s.effects!=25 || s.music!=15) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    if(!press_button("BACK",100) || !press_button("REDUCED MOTION: OFF",100) ||
+       !find_visible_button(lv_screen_active(),"REDUCED MOTION: ON") ||
+       !press_button("FIELD LAYOUT",100) || !press_button("HIDE",100) ||
+       !find_visible_button(lv_screen_active(),"SHOW") || !press_button("MOVE UP",100) ||
+       !press_button("BACK",100) || !press_button("OPEN INDUSTRIAL CONTROL",100) ||
+       find_visible_button(lv_screen_active(),"LIST")) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
+    puts("Subsystem navigation, desaturation, audio and library regression passed");
+    return true;
+}
+
 static int run_smoke(void)
 {
     lv_init();
@@ -66,14 +126,14 @@ static int run_smoke(void)
     if(!pl_is_unlocked()) { fprintf(stderr,"Field Lock hold/swipe failed\n"); return 1; }
     /* Quick Control is visible. Resolve the actual pack button positions by
      * their labels so the pointer test survives layout adjustments. */
-    const char *names[]={"START\nHOLD","VENT\nHOLD","STOP\nHOLD"};
+    const char *names[]={"START","VENT","STOP"};
     protonlink_status_t sample;
+    if(!press_button("START",250) || !protonlink_snapshot(&sample) || sample.pack_on) {
+        fprintf(stderr,"A short START press changed pack state\n");
+        return 1;
+    }
     for(int i=0;i<3;i++) {
-        lv_obj_t *button=find_visible_button(lv_screen_active(),names[i]);
-        if(!button) { fprintf(stderr,"Missing pack button %d\n",i); return 1; }
-        lv_area_t area; lv_obj_get_coords(button,&area);
-        int x=(area.x1+area.x2)/2,y=(area.y1+area.y2)/2;
-        touch(x,y,true,1200); touch(x,y,false,350);
+        if(!press_button(names[i],1200)) return 1;
         if(!protonlink_snapshot(&sample)) return 1;
         if((i==0 && !sample.pack_on) ||
            (i==1 && strcmp(sample.temperature,"Venting")) ||
@@ -88,6 +148,7 @@ static int run_smoke(void)
         }
     }
     puts("Pack START / VENT / STOP pointer regression passed");
+    if(!check_menus()) { fprintf(stderr,"Subsystem regression failed\n"); return 1; }
     mock_scenario(0); advance(300);
     if(pl_is_unlocked()) { fprintf(stderr,"Link loss did not lock controls\n"); return 1; }
     mock_scenario(2); advance(300);

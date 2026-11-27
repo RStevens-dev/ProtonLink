@@ -37,6 +37,18 @@ bool protonlink_decode(const char *json, protonlink_status_t *out)
         read_volume(root, "volEffects", &s.effects) &&
         read_volume(root, "volMusic", &s.music);
     if (valid) {
+        read_text(root, "mode", s.mode, sizeof(s.mode));
+        read_text(root, "theme", s.theme, sizeof(s.theme));
+        read_text(root, "wandMode", s.stream, sizeof(s.stream));
+        read_text(root, "wand", s.wand, sizeof(s.wand));
+        read_text(root, "wandPower", s.wand_power, sizeof(s.wand_power));
+        read_text(root, "cable", s.cable, sizeof(s.cable));
+        bool extended;
+        strcpy(s.barrel, read_enum(root, "safety", "Safety Off", "Safety On", &extended)
+               ? (extended ? "Extended" : "Retracted") : "Unknown");
+        const cJSON *lid = cJSON_GetObjectItemCaseSensitive(root, "cyclotronLid");
+        s.lid_known = cJSON_IsBool(lid);
+        s.lid_fitted = cJSON_IsTrue(lid);
         read_text(root, "temperature", s.temperature, sizeof(s.temperature));
         read_text(root, "cyclotron", s.cyclotron, sizeof(s.cyclotron));
         const cJSON *playing = cJSON_GetObjectItemCaseSensitive(root, "musicPlaying");

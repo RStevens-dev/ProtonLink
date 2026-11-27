@@ -90,7 +90,8 @@ cases.push(
  ["Quick commands are blocked while locked or disconnected",()=>{check(!quickAllowed(initial(),"on")&&!quickAllowed({...open(),online:false},"on")&&quickAllowed(open(),"on"),"guards")}],
  ["Quick commands map to existing API intentions",()=>{check(quickIntent("on").value===true&&quickIntent("off").value===false&&quickIntent("vent").type==="vent","intent")}],
  ["Quick stop stays available during vent cycle",()=>{const s={...open(),pack:true,temperature:"Venting"};check(quickAllowed(s,"off")&&!quickAllowed(s,"vent")&&!quickAllowed(s,"on"),"vent guard")}],
- ["Quick markup contains three faders and menu and monitor entry",()=>{const s=open(),body=quickBody(s,["master","effects","music"],{},false),head=quickHeader(s,"12:00",4);check((body.match(/data-fader=/g)||[]).length===3&&head.includes('data-act="go:home"')&&head.includes('id="quickDots"'),"markup")}]
+ ["Quick markup contains three faders and menu and monitor entry",()=>{const s=open(),body=quickBody(s,["master","effects","music"],{},false),head=quickHeader(s,"12:00",4);check((body.match(/data-fader=/g)||[]).length===3&&head.includes('data-act="go:home"')&&head.includes('id="quickDots"'),"markup")}],
+ ["Quick pack buttons keep accessible hold instructions and progress without visible HOLD",()=>{const body=quickBody(open(),["master","effects","music"],{},false);check(!body.includes(">HOLD<")&&(body.match(/aria-label="Hold to /g)||[]).length===3&&(body.match(/class="quick-progress"/g)||[]).length===3,"hold markup")}]
 );
 cases.push(
  ["Industrial transport displays named track and actual ID",()=>{const s=open(),h=quickTransport(s,false,"A & B");check(h.includes(String(s.track))&&h.includes("A &amp; B")&&h.includes('data-act="go:quicklibrary"'),"track readout")}],

@@ -34,7 +34,11 @@ Enable **Enable experimental GPStar control** in menuconfig only on a controlled
 Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main/examples/esp-idf/02_lvgl_demo_v9
 
 ## Visual parity
-The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`: industrial metal panels, red LINK wordmark, three channel colors, numeric readouts, fader tracks, scale marks, green track readout and hazard separator. Native LVGL now uses segmented indicators, gradient handles, diagonal hazard marks, a transport panel, and switch lamps. It implements Field Lock gestures, PKE monitor navigation and a paginated track database using the reported musicStart/musicEnd range. The radar is a simplified visualization; native track names currently use the browser's ordinal fallback, not imported or synchronized titles. Full subsystem menus, configurable channel order and remaining face variants are not yet ported. Visual and physical touch parity require manual validation.
+The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`. Disabled controls use a grayscale filter that keeps the underlying luminance and gradients. START, STOP, and VENT retain their one-second hold and progress meters. Field Lock keeps the two-second hold, release, and swipe sequence.
+
+The status bar opens COMMAND with Pack Info, Music, Mixer, Diagnostics, and Settings. Pack Info includes a guarded Manual Vent and a telemetry-based Startup Check. Music and Quick Control share a paginated track library with current-track favorites and selection by reported track ID. The three-channel mixer and four audio presets use the existing guarded volume queue. Settings offers main-screen selection, reduced motion, and Quick Control module ordering and visibility. Settings and favorites last for the current session.
+
+The native watch still uses a simplified PKE radar and ordinal track titles. Remaining browser features include alternate faces and detailed graphics, track-name import and synchronization, search, playlists and pack profiles, and capability-dependent effects and music options. Physical touch and visual parity still require watch validation.
 
 ## Native macOS simulator
 

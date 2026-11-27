@@ -5,7 +5,7 @@
 static bool unlocked;
 static uint32_t vent_start;
 static bool venting;
-static protonlink_status_t state={.online=true,.music_known=true,.transition_known=true,.legacy_superhero=true,.track=500,.track_first=500,.track_last=550,.master=30,.effects=100,.music=75,.temperature="Normal",.cyclotron="Normal"};
+static protonlink_status_t state={.online=true,.music_known=true,.transition_known=true,.legacy_superhero=true,.track=500,.track_first=500,.track_last=550,.master=30,.effects=100,.music=75,.lid_known=true,.lid_fitted=true,.mode="Super Hero",.theme="1984",.stream="Proton Stream",.wand="Connected",.wand_power="Idle",.cable="Connected",.barrel="Retracted",.temperature="Normal",.cyclotron="Normal"};
 void pl_set_unlocked(bool value){unlocked=value && state.online;}
 bool pl_is_unlocked(void){return unlocked;}
 bool pl_busy(void){return false;}

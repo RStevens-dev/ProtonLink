@@ -18,6 +18,15 @@ typedef struct {
     int master;
     int effects;
     int music;
+    bool lid_known;
+    bool lid_fitted;
+    char mode[24];
+    char theme[24];
+    char stream[32];
+    char wand[24];
+    char wand_power[24];
+    char cable[24];
+    char barrel[24];
     char temperature[24];
     char cyclotron[24];
 } protonlink_status_t;
