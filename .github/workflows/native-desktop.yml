@@ -29,7 +29,17 @@ jobs:
         run: build-desktop/ProtonLinkDesktop --smoke
       - name: Build memory-constrained simulator
         run: |
-          cmake -S firmware/desktop -B build-bounded -DCMAKE_BUILD_TYPE=Release -DPROTONLINK_BOUNDED_MEMORY=ON
+          # Reuse the exact sources fetched for the normal build. A second
+          # FetchContent clone can fail on transient GitHub network errors.
+          for dependency in sdl2 lvgl cjson; do
+            test -d "build-desktop/_deps/${dependency}-src" || exit 1
+          done
+          cmake -S firmware/desktop -B build-bounded \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPROTONLINK_BOUNDED_MEMORY=ON \
+            -DFETCHCONTENT_SOURCE_DIR_SDL2="$PWD/build-desktop/_deps/sdl2-src" \
+            -DFETCHCONTENT_SOURCE_DIR_LVGL="$PWD/build-desktop/_deps/lvgl-src" \
+            -DFETCHCONTENT_SOURCE_DIR_CJSON="$PWD/build-desktop/_deps/cjson-src"
           cmake --build build-bounded --parallel 4
       - name: Memory-constrained smoke test (2 MiB LVGL pool)
         timeout-minutes: 2
