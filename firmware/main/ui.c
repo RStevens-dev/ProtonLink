@@ -32,8 +32,9 @@ static lv_obj_t *music_summary, *music_state, *menu_summary, *menu_indicator;
 static lv_obj_t *pack_values[4], *diagnostic_values[9], *readiness_values[5];
 
 enum {
-    MENU_BG=0x10191e, MENU_BAR=0x152229, MENU_CARD=0x1b2a31, MENU_EDGE=0x344950,
-    MENU_TEXT=0xe0ecec, MENU_MUTED=0x94adb2, MENU_ACTIVE=0x95dbb0, MENU_AMBER=0xe6b75e
+    MENU_BG=0x030607, MENU_BAR=0x0d161a, MENU_CARD=0x0e171a, MENU_EDGE=0x334348,
+    MENU_TEXT=0xe0ecec, MENU_MUTED=0x91a6ac, MENU_ACTIVE=0x9fe2b4, MENU_AMBER=0xf5c06a,
+    MENU_CYAN=0x82c8db, MENU_ALERT=0xff877b
 };
 static lv_obj_t *music_play, *music_pause, *preset_buttons[5], *reduction_label, *main_screen_label;
 static lv_obj_t *library_return, *library_filter, *library_favorite, *library_empty;
@@ -520,7 +521,10 @@ static lv_obj_t *menu_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t co
 static lv_obj_t *menu_button(lv_obj_t *parent,const char *text,int width,int height,lv_obj_t **out)
 {
     lv_obj_t *button=make_button(parent,text,width,height,out);
-    menu_surface(button,MENU_CARD,8,true);
+    menu_surface(button,0x262c2e,8,true);
+    lv_obj_set_style_bg_grad_color(button,lv_color_hex(0x101416),0);
+    lv_obj_set_style_bg_grad_dir(button,LV_GRAD_DIR_VER,0);
+    lv_obj_set_style_bg_grad_color(button,lv_color_hex(0x17292f),LV_STATE_PRESSED);
     lv_obj_set_style_text_color(button,lv_color_hex(MENU_TEXT),0);
     lv_obj_set_style_text_font(button,&lv_font_montserrat_14,0);
     lv_obj_set_style_bg_color(button,lv_color_hex(0x2a444d),LV_STATE_PRESSED);
@@ -590,13 +594,22 @@ static const char *ready_text(bool known, bool ready)
 static void update_subsystems(const protonlink_status_t *s, bool armed, bool busy)
 {
     lv_label_set_text(menu_summary,ui_online?(s->pack_on?"PACK ONLINE":"PACK STANDBY"):"TELEMETRY UNAVAILABLE");
-    lv_obj_set_style_bg_color(menu_indicator,lv_color_hex(!ui_online?MENU_MUTED:s->pack_on?MENU_ACTIVE:MENU_AMBER),0);
+    lv_obj_set_style_text_color(menu_indicator,lv_color_hex(ui_online?MENU_CYAN:MENU_MUTED),0);
+    lv_obj_set_style_text_color(menu_summary,lv_color_hex(ui_online?MENU_AMBER:MENU_MUTED),0);
     const char *lid=!s->lid_known?"Unknown":s->lid_fitted?"Attached":"Removed";
     const char *pack[]={s->pack_on?"Powered":"Idle",s->theme,s->stream,s->mode};
     const char *diag[]={pack[0],s->wand,s->cable,lid,s->wand_power,s->barrel,
                         s->cyclotron,s->temperature,s->firing?"Firing":"Idle"};
     for(int i=0;i<4;i++) lv_label_set_text(pack_values[i],ui_online?pack[i]:"—");
-    for(int i=0;i<9;i++) lv_label_set_text(diagnostic_values[i],ui_online?diag[i]:"—");
+    bool attention[]={false,!strcmp(s->wand,"Not Connected"),!strcmp(s->cable,"Disconnected"),
+                      s->lid_known && !s->lid_fitted,false,false,
+                      !strcmp(s->cyclotron,"Critical") || !strcmp(s->cyclotron,"Warning"),
+                      !strcmp(s->temperature,"Venting"),s->firing};
+    for(int i=0;i<9;i++) {
+        lv_label_set_text(diagnostic_values[i],ui_online?diag[i]:"—");
+        lv_obj_set_style_text_color(diagnostic_values[i],lv_color_hex(!ui_online?MENU_MUTED:
+                                    attention[i]?MENU_ALERT:MENU_ACTIVE),0);
+    }
     lv_label_set_text(music_summary,ui_online?track_readout:"TELEMETRY UNAVAILABLE");
     lv_label_set_text(music_state,!ui_online || !s->music_known?"TRANSPORT UNAVAILABLE":
                       s->paused?"PAUSED":s->playing?"PLAYING":"STOPPED");
@@ -840,15 +853,33 @@ static void create_subsystems(lv_obj_t *root)
     lv_obj_set_pos(lock,326,8);
     header_button(lock);
     lv_obj_add_event_cb(lock,lock_event,LV_EVENT_CLICKED,NULL);
-    lv_obj_t *status=menu_panel(menu,24,76,362,46,MENU_BAR,8,true);
-    menu_indicator=menu_panel(status,13,17,10,10,MENU_MUTED,LV_RADIUS_CIRCLE,false);
-    menu_summary=label_at(status,"",33,12,MENU_TEXT);
-    static const char *captions[]={"PACK","MUSIC","MIXER","STATUS","SETUP","PKE MONITOR","EFFECTS","CONTROL"};
-    lv_obj_t *destinations[]={pack_info,music_page,mixer,diagnostics,settings,monitor,effects_page,quick};
-    for(int i=0;i<8;i++) {
-        lv_obj_t *tile=navigation(menu,captions[i],24+i%2*184,140+i/2*80,178,destinations[i]);
-        lv_obj_set_height(tile,68);
+    lv_obj_t *status=menu_panel(menu,24,76,362,82,0x10242b,12,true);
+    lv_obj_set_style_bg_grad_color(status,lv_color_hex(0x060c10),0);
+    lv_obj_set_style_bg_grad_dir(status,LV_GRAD_DIR_VER,0);
+    menu_indicator=label_at(status,LV_SYMBOL_POWER,0,0,MENU_CYAN);
+    lv_obj_set_style_text_font(menu_indicator,&lv_font_montserrat_24,0);
+    lv_obj_align(menu_indicator,LV_ALIGN_RIGHT_MID,-18,0);
+    menu_summary=label_at(status,"",14,0,MENU_AMBER);
+    lv_obj_set_style_text_font(menu_summary,&lv_font_montserrat_24,0);
+    lv_obj_set_size(menu_summary,282,30);
+    lv_label_set_long_mode(menu_summary,LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_align(menu_summary,LV_ALIGN_LEFT_MID,14,0);
+
+    static const char *captions[]={"PACK","MUSIC","MIXER","EFFECTS","STATUS","SETUP"};
+    static const char *icons[]={LV_SYMBOL_POWER,LV_SYMBOL_AUDIO,LV_SYMBOL_VOLUME_MID,
+                                LV_SYMBOL_CHARGE,LV_SYMBOL_BARS,LV_SYMBOL_SETTINGS};
+    lv_obj_t *destinations[]={pack_info,music_page,mixer,effects_page,diagnostics,settings};
+    for(int i=0;i<6;i++) {
+        lv_obj_t *tile=navigation(menu,captions[i],24+i%3*123,174+i/3*102,116,destinations[i]);
+        lv_obj_set_height(tile,92);
+        lv_obj_align(lv_obj_get_child(tile,0),LV_ALIGN_BOTTOM_MID,0,-9);
+        lv_obj_t *icon=label_at(tile,icons[i],0,0,MENU_CYAN);
+        lv_obj_set_style_text_font(icon,&lv_font_montserrat_24,0);
+        lv_obj_align(icon,LV_ALIGN_TOP_MID,0,10);
     }
+    menu_panel(menu,24,424,362,1,MENU_EDGE,0,false);
+    navigation(menu,"PKE MONITOR",24,439,178,monitor);
+    navigation(menu,"CONTROL",208,439,178,quick);
 
     static const char *pack_keys[]={"PACK","MOVIE ERA","STREAM","SYSTEM MODE"};
     for(int i=0;i<4;i++) pack_values[i]=menu_value(pack_info,pack_keys[i],24+i%2*184,78+i/2*65,178,55);
@@ -903,7 +934,9 @@ static void create_subsystems(lv_obj_t *root)
     static const char *channels[]={"MASTER","EFFECTS","MUSIC"};
     for(int i=0;i<3;i++) {
         int x=78+i*127;
-        menu_panel(mixer,x-54,75,108,338,MENU_CARD,8,true);
+        lv_obj_t *fader=menu_panel(mixer,x-54,75,108,338,MENU_CARD,10,true);
+        lv_obj_set_style_bg_grad_color(fader,lv_color_hex(0x18242a),0);
+        lv_obj_set_style_bg_grad_dir(fader,LV_GRAD_DIR_HOR,0);
         lv_obj_t *name=label_at(mixer,channels[i],x-38,88,0xd2d6cd);
         lv_obj_set_width(name,76);
         lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);
