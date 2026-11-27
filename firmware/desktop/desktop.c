@@ -4,6 +4,9 @@
 #include "ui.h"
 #include "mock.h"
 #include "control.h"
+#include "catalog.h"
+#include "faces.h"
+#include "options.h"
 #include <SDL.h>
 #include <stdbool.h>
 #include <string.h>
@@ -107,6 +110,106 @@ static bool check_menus(void)
     return true;
 }
 
+static bool check_track_formats(void)
+{
+    char fallback[24];
+    pl_catalog_load();
+    pl_catalog_switch_profile();
+    if(!pl_catalog_import("999 Firehouse\r\n501 Proton",500,505,true) ||
+       strcmp(pl_catalog_title(500,500,fallback),"Firehouse") ||
+       !pl_catalog_import("id,title\r\n502,\"Night, shift\"",500,505,false) ||
+       strcmp(pl_catalog_title(502,500,fallback),"Night, shift") ||
+       !pl_catalog_import("{\"tracks\":[{\"id\":503,\"title\":\"Ecto Patrol\"}]}",500,505,false) ||
+       !pl_catalog_match(503,500,"ecto pa") ||
+       !pl_catalog_import("#EXTM3U\n#EXTINF:120,March\n/music/001.ogg",500,505,false) ||
+       strcmp(pl_catalog_title(500,500,fallback),"March") ||
+       pl_catalog_import("500,Duplicate\n500,Again",500,505,false) ||
+       pl_catalog_import("[{\"id\":506,\"title\":\"Invalid\"}]",500,505,false) ||
+       strcmp(pl_catalog_title(500,500,fallback),"March") ||
+       !pl_catalog_save_playlist(0,"Night Patrol","503,500,503,502",500,505) ||
+       pl_catalog_playlist_track(0,0)!=503 || pl_catalog_playlist_track(0,1)!=500 ||
+       pl_catalog_playlist_track(0,2)!=502 || pl_catalog_playlist_track(0,3)!=0) return false;
+    for(int i=1;i<PL_PROFILE_COUNT;i++) pl_catalog_switch_profile();
+    if(strcmp(pl_catalog_title(500,500,fallback),"Firehouse") || *pl_catalog_playlist_name(0)) return false;
+    pl_catalog_import("",500,505,true);
+    return true;
+}
+
+static bool check_optional_telemetry(void)
+{
+    protonlink_status_t s;
+    const char *status="{\"pack\":\"Idle\",\"firing\":\"Idle\",\"volMaster\":20,\"volEffects\":25,\"volMusic\":15,"
+                       "\"power\":\"4\",\"musicLooping\":false,\"musicShuffled\":true,\"vgMode\":true,"
+                       "\"canChangeStream\":true,\"theme\":\"1984\"}";
+    if(!protonlink_decode(status,&s) || s.power_level!=4 || !s.vg_mode || !s.stream_change_reported) return false;
+    return s.known_options==((1u<<PL_OPT_REPEAT)|(1u<<PL_OPT_SHUFFLE)) &&
+           s.option_values==(1u<<PL_OPT_SHUFFLE) && !s.advertised_options;
+}
+
+static bool check_option_guards(void)
+{
+    protonlink_status_t s;
+    if(!protonlink_snapshot(&s) || !pl_option_path(PL_OPT_REPEAT,&s)) return false;
+    s.advertised_options&=~(1u<<PL_OPT_REPEAT);
+    if(pl_option_path(PL_OPT_REPEAT,&s)) return false;
+    s.known_options&=~(1u<<PL_OPT_SHUFFLE);
+    if(pl_option_path(PL_OPT_SHUFFLE,&s) || !pl_option_path(PL_OPT_1989,&s)) return false;
+    s.pack_on=true;
+    if(pl_option_path(PL_OPT_1989,&s) || !pl_option_path(PL_OPT_STASIS,&s)) return false;
+    s.firing=true;
+    return !pl_option_path(PL_OPT_STASIS,&s) && !pl_option_path(PL_OPT_SMOKE,&s);
+}
+
+static bool check_catalog_ui(void)
+{
+    if(!press_button("SYSTEM STANDBY",100) || !press_button("MUSIC",100) ||
+       !press_button("REPEAT ALL",100) || !find_visible_button(lv_screen_active(),"REPEAT ONE") ||
+       !press_button("TRACK LIBRARY",100) || !press_button("TRACK TOOLS",100) ||
+       !press_button("SYNC DEVICE TITLES",100) || !press_button("BACK",100) ||
+       !press_button("SEARCH",100) || !protonlink_ui_paste_text("Firehouse") ||
+       !press_button("APPLY",100) ||
+       !find_visible_button(lv_screen_active(),"> 02    Firehouse Theme    501") ||
+       find_visible_button(lv_screen_active(),"  01    Proton March    500  *")) return false;
+    if(!press_button("TRACK TOOLS",100) || !press_button("IMPORT TITLES",100) ||
+       !protonlink_ui_paste_text("501,Night Watch") || !press_button("APPLY",100) ||
+       !press_button("BACK",100) || !press_button("SEARCH",100)) return false;
+    /* Search opens with its previous query. Return through Music to reset it. */
+    if(!press_button("BACK",100) || !press_button("RETURN TO MUSIC",100) ||
+       !press_button("TRACK LIBRARY",100) ||
+       !find_visible_button(lv_screen_active(),"> 02    Night Watch    501")) return false;
+    if(!press_button("TRACK TOOLS",100) || !press_button("PLAYLISTS",100) ||
+       !press_button("1   Empty",100) || !protonlink_ui_paste_text("Night Patrol")) return false;
+    touch(150,140,true,100); touch(150,140,false,100);
+    if(!protonlink_ui_paste_text("501,500") || !press_button("APPLY",100) ||
+       !press_button("1   Night Patrol",100) ||
+       !find_visible_button(lv_screen_active(),"PLAYLIST")) return false;
+    if(!press_button("RETURN TO MUSIC",100) || !press_button("BACK",100) ||
+       !press_button("EFFECTS",100) || !press_button("MOVIE ERA",100) ||
+       !press_button("1989 / GHOSTBUSTERS II",100)) return false;
+    protonlink_status_t s;
+    return protonlink_snapshot(&s) && !strcmp(s.theme,"1989") &&
+           press_button("BACK",100) && press_button("BACK",100) && press_button("SETUP",100) &&
+           press_button("DISPLAY SETTINGS",100) && press_button("FACE: PKE Scanner",100) &&
+           find_visible_button(lv_screen_active(),"FACE: Cyclotron Reactor");
+}
+
+static bool render_faces(void)
+{
+    lv_obj_t *face=pl_face_create(lv_screen_active(),56,386);
+    protonlink_status_t s={.online=true,.pack_on=true,.playing=true,.power_level=3,.track=501};
+    for(int i=0;i<PL_FACE_COUNT;i++) {
+        unsigned before=smoke_flushes;
+        pl_face_update(face,i,&s,"12:34","Thu Nov 26",false);
+        advance(60);
+        if(smoke_flushes==before) {
+            lv_obj_delete(face);
+            return false;
+        }
+    }
+    lv_obj_delete(face);
+    return true;
+}
+
 static int run_smoke(void)
 {
     lv_init();
@@ -114,6 +217,10 @@ static int run_smoke(void)
     if (!display) return 1;
     lv_display_set_buffers(display, smoke_buffer, NULL, sizeof(smoke_buffer), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(display, smoke_flush);
+    if(!check_track_formats() || !check_optional_telemetry() || !check_option_guards()) {
+        fprintf(stderr,"Track import or option guard regression failed\n");
+        return 1;
+    }
     protonlink_ui_create();
     lv_indev_t *pointer=lv_indev_create();
     lv_indev_set_type(pointer,LV_INDEV_TYPE_POINTER);
@@ -149,6 +256,11 @@ static int run_smoke(void)
     }
     puts("Pack START / VENT / STOP pointer regression passed");
     if(!check_menus()) { fprintf(stderr,"Subsystem regression failed\n"); return 1; }
+    if(!check_catalog_ui() || !render_faces()) {
+        fprintf(stderr,"Catalog navigation or face rendering regression failed\n");
+        return 1;
+    }
+    puts("Track import, search, sync, capability guards, and face rendering passed");
     mock_scenario(0); advance(300);
     if(pl_is_unlocked()) { fprintf(stderr,"Link loss did not lock controls\n"); return 1; }
     mock_scenario(2); advance(300);
@@ -167,6 +279,7 @@ static int run_smoke(void)
     return 0;
 }
 static bool running=true;
+static SDL_atomic_t paste_requested;
 static int watch_events(void *data,SDL_Event *event){
     (void)data;
     if(event->type==SDL_QUIT || (event->type==SDL_WINDOWEVENT && event->window.event==SDL_WINDOWEVENT_CLOSE))running=false;
@@ -177,6 +290,9 @@ static int watch_events(void *data,SDL_Event *event){
             case SDLK_2:mock_scenario(2);break;
             case SDLK_3:mock_scenario(3);break;
             case SDLK_ESCAPE:running=false;break;
+            case SDLK_v:
+                if(event->key.keysym.mod & (KMOD_GUI|KMOD_CTRL)) SDL_AtomicSet(&paste_requested,1);
+                break;
         }
     }return 1;
 }
@@ -194,6 +310,11 @@ int main(int argc,char **argv){
     protonlink_ui_create();
     while(running){
         lv_timer_handler();
+        if(SDL_AtomicCAS(&paste_requested,1,0)) {
+            char *text=SDL_GetClipboardText();
+            protonlink_ui_paste_text(text);
+            SDL_free(text);
+        }
         SDL_Delay(5);
     }
     SDL_DelEventWatch(watch_events,NULL);

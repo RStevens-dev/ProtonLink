@@ -1,7 +1,9 @@
 #include "telemetry.h"
+#include "options.h"
 #include <string.h>
 #include <math.h>
 #include "cJSON.h"
+#include "json_input.h"
 
 static bool read_enum(cJSON *root, const char *key, const char *a, const char *b, bool *value)
 {
@@ -27,7 +29,7 @@ static void read_text(cJSON *root, const char *key, char *out, size_t size)
 }
 bool protonlink_decode(const char *json, protonlink_status_t *out)
 {
-    if (!json || !out) return false;
+    if (!json || !out || !pl_json_depth_ok(json)) return false;
     cJSON *root = cJSON_ParseWithOpts(json, NULL, true);
     protonlink_status_t s = {0};
     bool valid = cJSON_IsObject(root) &&
@@ -37,6 +39,21 @@ bool protonlink_decode(const char *json, protonlink_status_t *out)
         read_volume(root, "volEffects", &s.effects) &&
         read_volume(root, "volMusic", &s.music);
     if (valid) {
+        static const char *const option_fields[]={"volMuted","musicLooping","musicShuffled","smoke","vibration","direction"};
+        for(int i=0;i<=PL_OPT_DIRECTION;i++) {
+            const cJSON *field=cJSON_GetObjectItemCaseSensitive(root,option_fields[i]);
+            if(cJSON_IsBool(field)) {
+                s.known_options|=1u<<i;
+                if(cJSON_IsTrue(field)) s.option_values|=1u<<i;
+            }
+        }
+        s.vg_mode=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root,"vgMode"));
+        s.stream_change_reported=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root,"canChangeStream"));
+        const cJSON *power=cJSON_GetObjectItemCaseSensitive(root,"power");
+        if(cJSON_IsString(power) && power->valuestring[0]>='1' && power->valuestring[0]<='5' && !power->valuestring[1])
+            s.power_level=power->valuestring[0]-'0';
+        if(cJSON_IsNumber(power) && power->valuedouble>=1 && power->valuedouble<=5 && power->valuedouble==power->valueint)
+            s.power_level=power->valueint;
         read_text(root, "mode", s.mode, sizeof(s.mode));
         read_text(root, "theme", s.theme, sizeof(s.theme));
         read_text(root, "wandMode", s.stream, sizeof(s.stream));

@@ -36,9 +36,15 @@ Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main
 ## Visual parity
 The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`. Disabled controls use a grayscale filter that keeps the underlying luminance and gradients. START, STOP, and VENT retain their one-second hold and progress meters. Field Lock keeps the two-second hold, release, and swipe sequence.
 
-The status bar opens COMMAND with Pack Info, Music, Mixer, Diagnostics, and Settings. Pack Info includes a guarded Manual Vent and a telemetry-based Startup Check. Music and Quick Control share a paginated track library with current-track favorites and selection by reported track ID. The three-channel mixer and four audio presets use the existing guarded volume queue. Settings offers main-screen selection, reduced motion, and Quick Control module ordering and visibility. Settings and favorites last for the current session.
+The status bar opens COMMAND with Pack Info, Music, Mixer, Diagnostics, and Settings. Pack Info includes a guarded Manual Vent and a telemetry-based Startup Check. Music and Quick Control share a paginated track library with current-track favorites and selection by reported track ID. The three-channel mixer and four audio presets use the existing guarded volume queue. Settings offers main-screen selection, reduced motion, and Quick Control module ordering and visibility.
 
-The native watch still uses a simplified PKE radar and ordinal track titles. Remaining browser features include alternate faces and detailed graphics, track-name import and synchronization, search, playlists and pack profiles, and capability-dependent effects and music options. Physical touch and visual parity still require watch validation.
+Display Settings provides all eleven browser face variants using native LVGL drawing, plus optional automatic alarm, vent, and firing faces, PKE contact labels, reduced motion, marquee colors, and swipe navigation. Diagnostics and Music include pack and transport graphics. ESP32 display preferences are stored locally. The desktop simulator keeps settings in memory.
+
+Track Tools can edit the current track title, import TXT, CSV, JSON, and M3U/M3U8 text, or read device titles from `/config/device`. On desktop, paste into the import editor with Command+V or Control+V. Explicit IDs must be within the reported range, and device names retain positional mapping. Local titles take precedence. Search matches the displayed title or track ID. Playlists preserve order and can be edited by holding their row. Four named pack-library profiles group local titles, favorites, and playlists. The configured Attenuator endpoint continues to come from the firmware settings. The ESP32 saves local metadata when flash storage permits. Synced titles are cached for the session.
+
+Music and Effects options use reported OpenAPI PUT routes and current compatible telemetry. Optional controls remain unavailable when the equipment lacks those routes or the relevant state. Era changes additionally require a reported modern pack with the pack and wand idle. Stream changes require an explicit telemetry window. The command queue rechecks the route and lock epoch before dispatch.
+
+The native views use the same face concepts and telemetry, with independent LVGL layouts. Physical display and touch validation, hardware capability testing, and browser-only file pickers and configuration tools remain separate.
 
 ## Native macOS simulator
 
