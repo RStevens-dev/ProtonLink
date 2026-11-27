@@ -18,7 +18,7 @@ class BridgeTest(unittest.TestCase):
         class Mock(BaseHTTPRequestHandler):
             def do_GET(self):
                 calls.append(self.path)
-                raw = json.dumps({"pack":"Idle","songList":"Theme","password":"secret"}).encode()
+                raw = json.dumps({"pack":"Idle","songList":"Theme","password":"secret","firing":"Idle","temperature":"Normal","cyclotron":"Normal","wandPower":"Idle"}).encode()
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(raw)
@@ -62,8 +62,21 @@ class BridgeTest(unittest.TestCase):
         for path in ("/pack/unknown","/music/select?track=499","/volume/master/set/101"):
             with self.assertRaises(HTTPError):
                 urlopen(Request(self.url+"/bridge"+path,headers=headers,method="PUT"))
-        self.assertEqual(self.calls,["PUT /pack/on","PUT /music/select?track=514","PUT /volume/master/set/10"])
+        self.assertEqual(self.calls,["/status","PUT /pack/on","PUT /music/select?track=514","PUT /volume/master/set/10"])
     def test_preference_probe(self):
         self.assertTrue(json.load(urlopen(self.url+"/bridge/settings/pack"))["requested"])
         self.assertEqual(json.load(urlopen(self.url+"/bridge/config/pack"))["pack"],"Idle")
         self.assertEqual(self.calls,["/settings/pack","/config/pack"])
+
+    def test_guard_rejects_unsafe_pack_state(self):
+        self.server.RequestHandlerClass = bridge.handler_for("127.0.0.1",self.up.server_port,{f"127.0.0.1:{self.server.server_port}"},True)
+        headers={"Origin":self.url,"X-ProtonLink-Command":"1"}
+        with self.assertRaises(HTTPError) as ctx:
+            urlopen(Request(self.url+"/bridge/pack/vent",headers=headers,method="PUT"))
+        self.assertEqual(ctx.exception.code,409)
+        self.assertEqual(self.calls,["/status"])
+        state={"pack":"Powered","firing":"Idle","temperature":"Normal","cyclotron":"Normal","cable":"Connected"}
+        self.assertTrue(bridge.guarded_pack_command("/pack/vent",state))
+        for change in ({"firing":"Firing"},{"temperature":"Unknown"},{"lockout":True},{"ramping":True}):
+            self.assertFalse(bridge.guarded_pack_command("/pack/vent",{**state,**change}))
+        self.assertFalse(bridge.guarded_pack_command("/pack/stream/proton",{**state,"canChangeStream":False}))

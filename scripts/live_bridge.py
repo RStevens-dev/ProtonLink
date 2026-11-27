@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loopback-only, fixed-target, read-only ProtonLink bridge. Standard library only."""
+"""Loopback-only, fixed-target ProtonLink bridge. Standard library only."""
 import argparse
 import http.client
 import ipaddress
@@ -29,6 +29,27 @@ COMMAND = re.compile(r"/(?:pack/(?:on|off|vent|attenuate|lockout|restart|cable/(
 
 def allowed_command(path, query):
     return bool((COMMAND.fullmatch(path) and not query) or (path == "/music/select" and re.fullmatch(r"track=[0-9]{3,4}", query) and 500 <= int(query[6:]) <= 4595))
+
+def guarded_pack_command(path, status):
+    """Fail closed for state-dependent pack commands using fresh upstream status."""
+    if status.get("firing") != "Idle" or status.get("temperature") != "Normal" or status.get("cyclotron") not in ("Normal", "Active") or status.get("lockout") is True or status.get("ramping") is True:
+        return False
+    if status.get("pack") not in ("Powered", "Idle"):
+        return False
+    if path.startswith("/pack/theme/"):
+        return status.get("pack") == "Idle" and status.get("wandPower") == "Idle"
+    if path.startswith("/pack/stream/"):
+        return status.get("pack") == "Powered" and status.get("cable") == "Connected" and status.get("canChangeStream") is not False and status.get("vgMode") is not False
+    if path == "/pack/vent":
+        return status.get("pack") == "Powered"
+    if path == "/pack/on":
+        return status.get("pack") == "Idle"
+    if path == "/pack/off":
+        return status.get("pack") == "Powered"
+    return True
+
+def needs_pack_guard(path):
+    return path in ("/pack/on", "/pack/off", "/pack/vent", "/pack/smoke/on") or path.startswith(("/pack/theme/", "/pack/stream/"))
 
 def handler_for(target, port, allowed_hosts, commands=False):
     command_lock = threading.Lock()
@@ -77,7 +98,7 @@ def handler_for(target, port, allowed_hosts, commands=False):
                         return self.error_json(502, "Expected JSON object")
                     # Avoid exposing configuration secrets; only documented fields needed by the UI.
                     if url.path == "/bridge/config/device":
-                        value = {k: value[k] for k in ("songList", "buildDate", "audioVersion", "streamModes") if k in value}
+                        value = {k: value[k] for k in ("songList", "buildDate", "audioVersion", "audioCorrupt", "audioOutdated", "streamModes") if k in value}
                     self.reply(200, json.dumps(value).encode())
                 except (OSError, ValueError, http.client.HTTPException):
                     self.error_json(502, "Upstream unavailable or invalid JSON")
@@ -114,6 +135,21 @@ def handler_for(target, port, allowed_hosts, commands=False):
             if not url.path.startswith("/bridge/") or url.scheme or url.netloc or url.fragment or not allowed_command(path, url.query):
                 return self.error_json(403, "Command not allowlisted")
             with command_lock:
+                if needs_pack_guard(path):
+                    check = http.client.HTTPConnection(target, port, timeout=3)
+                    try:
+                        check.request("GET", "/status", headers={"Accept":"application/json", "Connection":"close"})
+                        result = check.getresponse()
+                        raw = result.read(MAX_BODY + 1)
+                        if result.status != 200 or len(raw) > MAX_BODY:
+                            return self.error_json(503, "Fresh pack status unavailable")
+                        status = json.loads(raw)
+                        if not isinstance(status, dict) or not guarded_pack_command(path, status):
+                            return self.error_json(409, "Pack state does not permit command")
+                    except (OSError, ValueError, http.client.HTTPException):
+                        return self.error_json(503, "Fresh pack status unavailable")
+                    finally:
+                        check.close()
                 conn = http.client.HTTPConnection(target, port, timeout=3)
                 try:
                     conn.request("PUT", path + ("?" + url.query if url.query else ""), headers={"Connection":"close"})
