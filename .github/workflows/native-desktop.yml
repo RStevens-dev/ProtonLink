@@ -41,6 +41,7 @@ jobs:
           cp build-desktop/ProtonLinkDesktop dist/
           cp build-desktop/_deps/sdl2-src/LICENSE.txt dist/SDL2-LICENSE.txt
           cp build-desktop/_deps/cjson-src/LICENSE dist/cJSON-LICENSE
+          cp firmware/main/fonts/OFL.txt dist/IBM-Plex-OFL.txt
           otool -L dist/ProtonLinkDesktop
           if otool -L dist/ProtonLinkDesktop | grep -E 'libSDL2|/opt/homebrew/|/usr/local/'; then
             echo "Unexpected non-system dynamic dependency"

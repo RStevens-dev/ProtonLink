@@ -1,4 +1,5 @@
 #include "lvgl.h"
+#include "fonts/watch_fonts.h"
 #include "control.h"
 #include "catalog.h"
 #include "faces.h"
@@ -536,14 +537,14 @@ static void header_button(lv_obj_t *button)
 {
     menu_surface(button,MENU_BAR,6,true);
     lv_obj_set_style_text_color(button,lv_color_hex(MENU_MUTED),0);
-    lv_obj_set_style_text_font(button,&lv_font_montserrat_12,0);
+    lv_obj_set_style_text_font(button,&pl_mono_12,0);
 }
 
 static lv_obj_t *menu_value(lv_obj_t *page,const char *name,int x,int y,int w,int h)
 {
     lv_obj_t *card=menu_panel(page,x,y,w,h,MENU_CARD,8,true);
     lv_obj_t *key=label_at(card,name,11,7,MENU_MUTED);
-    lv_obj_set_style_text_font(key,&lv_font_montserrat_12,0);
+    lv_obj_set_style_text_font(key,&pl_mono_12,0);
     lv_obj_t *value=label_at(card,"",11,24,MENU_TEXT);
     lv_obj_set_size(value,w-22,19);
     lv_label_set_long_mode(value,LV_LABEL_LONG_MODE_DOTS);
@@ -555,6 +556,7 @@ static void menu_title(lv_obj_t *page,const char *title,int height)
     menu_panel(page,0,0,410,height,MENU_BAR,0,false);
     menu_panel(page,0,height-1,410,1,MENU_EDGE,0,false);
     lv_obj_t *heading=label_at(page,title,0,0,MENU_TEXT);
+    lv_obj_set_style_text_font(heading,&pl_mono_16,0);
     lv_obj_set_style_text_letter_space(heading,1,0);
     lv_obj_align(heading,LV_ALIGN_TOP_MID,0,(height-16)/2);
 }
@@ -860,7 +862,7 @@ static void create_subsystems(lv_obj_t *root)
     lv_obj_set_style_text_font(menu_indicator,&lv_font_montserrat_24,0);
     lv_obj_align(menu_indicator,LV_ALIGN_RIGHT_MID,-18,0);
     menu_summary=label_at(status,"",14,0,MENU_AMBER);
-    lv_obj_set_style_text_font(menu_summary,&lv_font_montserrat_24,0);
+    lv_obj_set_style_text_font(menu_summary,&pl_mono_24,0);
     lv_obj_set_size(menu_summary,282,30);
     lv_label_set_long_mode(menu_summary,LV_LABEL_LONG_MODE_DOTS);
     lv_obj_align(menu_summary,LV_ALIGN_LEFT_MID,14,0);
@@ -896,7 +898,7 @@ static void create_subsystems(lv_obj_t *root)
         label_at(card,check_keys[i],13,17,MENU_TEXT);
         readiness_values[i]=label_at(card,"",0,0,MENU_MUTED);
         lv_obj_align(readiness_values[i],LV_ALIGN_RIGHT_MID,-12,0);
-        lv_obj_set_style_text_font(readiness_values[i],&lv_font_montserrat_12,0);
+        lv_obj_set_style_text_font(readiness_values[i],&pl_mono_12,0);
     }
     diagnostics_art=pl_face_create(diagnostics,72,120);
     static const char *diag_keys[]={"PACK","WAND","RIBBON","LID","WAND POWER","BARREL","CYCLOTRON","VENT STATE","FIRING"};
@@ -904,7 +906,7 @@ static void create_subsystems(lv_obj_t *root)
 
     lv_obj_t *now_playing=menu_panel(music_page,24,73,362,70,MENU_CARD,8,true);
     music_state=label_at(now_playing,"",12,10,MENU_MUTED);
-    lv_obj_set_style_text_font(music_state,&lv_font_montserrat_12,0);
+    lv_obj_set_style_text_font(music_state,&pl_mono_12,0);
     music_summary=label_at(now_playing,"",12,31,MENU_ACTIVE);
     lv_obj_set_size(music_summary,335,28);
     lv_label_set_long_mode(music_summary,LV_LABEL_LONG_MODE_DOTS);
@@ -943,7 +945,7 @@ static void create_subsystems(lv_obj_t *root)
         level_labels[i+3]=label_at(mixer,"--",x-25,124,channel_color[i]);
         lv_obj_set_width(level_labels[i+3],50);
         lv_obj_set_style_text_align(level_labels[i+3],LV_TEXT_ALIGN_CENTER,0);
-        lv_obj_set_style_text_font(level_labels[i+3],&lv_font_montserrat_24,0);
+        lv_obj_set_style_text_font(level_labels[i+3],&pl_mono_24,0);
         lv_obj_t *slider=levels[i+3]=lv_slider_create(mixer);
         lv_obj_remove_flag(slider,LV_OBJ_FLAG_GESTURE_BUBBLE);
         lv_obj_set_size(slider,26,220);
@@ -1285,11 +1287,13 @@ void protonlink_ui_create(void)
     lv_label_set_text(title,"PROTON#e86b57 LINK#");
     lv_obj_set_style_text_font(title,&lv_font_montserrat_24,0);
     clock_label=lv_label_create(header);
+    lv_obj_set_style_text_font(clock_label,&pl_mono_16,0);
     lv_obj_set_style_text_color(clock_label,lv_color_hex(0xdbe1db),0);
     lv_obj_t *status=line(screen,34);
     lv_obj_t *entry=make_button(status,"SYSTEM STANDBY >",252,30,&telemetry_label);
     lv_obj_add_event_cb(entry,nav_event,LV_EVENT_CLICKED,menu);
     lv_obj_set_style_text_color(telemetry_label,lv_color_hex(0xb3c8b8),0);
+    lv_obj_set_style_text_font(telemetry_label,&pl_mono_12,0);
     dot_button=make_dots(status);
     for(int i=0;i<4;i++) dots[i]=lv_obj_get_child(dot_button,i);
     dot_progress=progress_at(dot_button,100,0,0xe6b75e);
@@ -1315,7 +1319,7 @@ void protonlink_ui_create(void)
         lv_obj_set_pos(name,18,4);
         lv_obj_t *code=lv_label_create(panel);
         lv_label_set_text(code,codes[i]);
-        lv_obj_set_style_text_font(code,&lv_font_montserrat_12,0);
+        lv_obj_set_style_text_font(code,&pl_mono_12,0);
         lv_obj_set_style_text_color(code,lv_color_hex(0x8e9a98),0);
         lv_obj_set_pos(code,18,22);
         level_labels[i]=lv_label_create(panel);
@@ -1326,7 +1330,7 @@ void protonlink_ui_create(void)
         lv_obj_set_style_border_width(level_labels[i],1,0);
         lv_obj_set_style_border_color(level_labels[i],lv_color_hex(0x52605e),0);
         lv_obj_set_style_text_align(level_labels[i],LV_TEXT_ALIGN_CENTER,0);
-        lv_obj_set_style_text_font(level_labels[i],&lv_font_montserrat_24,0);
+        lv_obj_set_style_text_font(level_labels[i],&pl_mono_24,0);
         lv_obj_set_style_text_color(level_labels[i],lv_color_hex(channel_color[i]),0);
         levels[i]=lv_slider_create(panel);
         lv_obj_remove_flag(levels[i],LV_OBJ_FLAG_GESTURE_BUBBLE);
@@ -1385,7 +1389,7 @@ void protonlink_ui_create(void)
     lv_obj_t *transport=line(transport_panel,18); lv_obj_set_width(transport,376);
     lv_obj_t *aux=lv_label_create(transport);
     lv_label_set_text(aux,"AUX TRANSPORT / CH-03");
-    lv_obj_set_style_text_font(aux,&lv_font_montserrat_12,0);
+    lv_obj_set_style_text_font(aux,&pl_mono_12,0);
     lv_obj_set_style_text_color(aux,lv_color_hex(0xa4b1a9),0);
     transport_light=lv_obj_create(transport); lv_obj_remove_style_all(transport_light); lv_obj_set_size(transport_light,10,10); lv_obj_set_style_radius(transport_light,LV_RADIUS_CIRCLE,0); lv_obj_set_style_bg_opa(transport_light,LV_OPA_COVER,0);
     lv_obj_t *track_button=make_button(transport_panel,"TRACK UNAVAILABLE",376,26,&track_label);
@@ -1395,6 +1399,7 @@ void protonlink_ui_create(void)
     lv_obj_set_style_bg_color(track_label,lv_color_hex(0x040a08),0);
     lv_obj_set_style_bg_opa(track_label,LV_OPA_COVER,0);
     lv_obj_set_style_text_color(track_label,lv_color_hex(0x8bd89f),0);
+    lv_obj_set_style_text_font(track_label,&pl_mono_16,0);
     lv_obj_set_style_text_align(track_label,LV_TEXT_ALIGN_CENTER,0);
     lv_obj_t *music=line(transport_panel,35); lv_obj_set_width(music,376);
     action_button(music,PL_PLAY_STOP,"START",86,&play_label);
@@ -1431,14 +1436,15 @@ void protonlink_ui_create(void)
         pack_progress[i]=progress_at(buttons[i],100,-2,switch_color[i]);
     }
     status_label=lv_label_create(screen); lv_obj_set_style_text_color(status_label,lv_color_hex(0xe6b75e),0);
-    lv_obj_set_style_text_font(status_label,&lv_font_montserrat_12,0);
+    lv_obj_set_style_text_font(status_label,&pl_mono_12,0);
     lv_obj_t *foot=lv_label_create(screen); lv_label_set_text(foot,"FIELD CONTROL / HOLD LIGHTS TO LOCK");
-    lv_obj_set_style_text_font(foot,&lv_font_montserrat_12,0); lv_obj_set_style_text_color(foot,lv_color_hex(0xe6b75e),0);
+    lv_obj_set_style_text_font(foot,&pl_mono_12,0); lv_obj_set_style_text_color(foot,lv_color_hex(0xe6b75e),0);
     field_face=pl_face_create(field,56,386);
     monitor_face=pl_face_create(monitor,56,386);
     label_at(field,"LINK / PL-01",16,15,0x82b693);
     lock_label=label_at(field,"HOLD TO UNLOCK",0,0,MENU_AMBER);
     lv_obj_set_width(lock_label,370);
+    lv_obj_set_style_text_font(lock_label,&pl_mono_16,0);
     lv_obj_set_style_text_align(lock_label,LV_TEXT_ALIGN_CENTER,0);
     lv_obj_set_style_text_letter_space(lock_label,1,0);
     lv_obj_align(lock_label,LV_ALIGN_BOTTOM_MID,0,-22);
@@ -1456,6 +1462,7 @@ void protonlink_ui_create(void)
     lv_obj_set_pos(library_return,30,49);
     lv_obj_add_event_cb(library_return,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)RETURN_FROM_LIBRARY);
     library_track=label_at(library,"TRACK UNAVAILABLE",30,184,0x8bd89f);
+    lv_obj_set_style_text_font(library_track,&pl_mono_16,0);
     lv_obj_set_width(library_track,350); lv_label_set_long_mode(library_track,LV_LABEL_LONG_DOT);
     library_filter=menu_button(library,"ALL TRACKS",170,34,NULL);
     lv_obj_set_pos(library_filter,30,96);
@@ -1467,6 +1474,7 @@ void protonlink_ui_create(void)
         library_rows[i]=menu_button(library,"",350,32,&library_names[i]); lv_obj_set_pos(library_rows[i],30,208+i*34);
         lv_obj_set_style_bg_color(library_rows[i],lv_color_hex(0x27443c),LV_STATE_USER_1);
         lv_obj_set_style_border_color(library_rows[i],lv_color_hex(0x537c68),LV_STATE_USER_1);
+        lv_obj_set_style_text_font(library_names[i],&pl_mono_12,0);
         lv_obj_set_width(library_names[i],318); lv_label_set_long_mode(library_names[i],LV_LABEL_LONG_DOT);
         lv_obj_add_event_cb(library_rows[i],library_event,LV_EVENT_CLICKED,(void *)(intptr_t)i);
     }

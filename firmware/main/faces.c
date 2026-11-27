@@ -1,4 +1,5 @@
 #include "faces.h"
+#include "fonts/watch_fonts.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -93,8 +94,8 @@ static void centered(surface_t g,const char *value,int y,const lv_font_t *font,u
 
 static void clock_header(surface_t g,const frame_t *f,const char *title,uint32_t color)
 {
-    centered(g,title,9,&lv_font_montserrat_12,color);
-    centered(g,f->clock,29,&lv_font_montserrat_48,color);
+    centered(g,title,9,&pl_mono_12,color);
+    centered(g,f->clock,29,&pl_mono_48,color);
 }
 
 static uint32_t condition(const protonlink_status_t *s)
@@ -139,7 +140,7 @@ static void radar(surface_t g,const frame_t *f)
         uint32_t color=s->online?colors[i]:0x526059;
         circle(g,px,py,9,0,color);
         circle(g,px,py,4,color,0);
-        if(contact_labels) text(g,names[i],px-38,py-26,76,&lv_font_montserrat_12,color,LV_TEXT_ALIGN_CENTER);
+        if(contact_labels) text(g,names[i],px-38,py-26,76,&pl_mono_12,color,LV_TEXT_ALIGN_CENTER);
     }
     circle(g,x,y,4,s->online?GREEN:RED,0);
 }
@@ -159,14 +160,14 @@ static void reactor(surface_t g,const frame_t *f,bool analog)
         double a=(1.0+(f->status.power_level>0?f->status.power_level:0)*.2)*PI;
         spoke(g,x,y,-14,98,a,AMBER,3);
         circle(g,x,y,9,AMBER,STEEL);
-        centered(g,"DISCHARGE LEVEL",275,&lv_font_montserrat_12,DIM);
+        centered(g,"DISCHARGE LEVEL",275,&pl_mono_12,DIM);
     } else {
         circle(g,x,y,74,0x17272a,STEEL);
         lights(g,x,y,88,f);
         char level[12];
         snprintf(level,sizeof(level),"L-%d",f->status.power_level);
-        centered(g,f->status.power_level?level:"L--",190,&lv_font_montserrat_48,condition(&f->status));
-        centered(g,"WAND LEVEL",249,&lv_font_montserrat_12,DIM);
+        centered(g,f->status.power_level?level:"L--",190,&pl_mono_48,condition(&f->status));
+        centered(g,"WAND LEVEL",249,&pl_mono_12,DIM);
     }
 }
 
@@ -184,9 +185,9 @@ static void schematic(surface_t g,const frame_t *f)
     rect(g,274,155,16,133,4,0x192c33,BLUE);
     line(g,245,315,275,281,BLUE,1);
     line(g,25,137,110,153,BLUE,1);
-    text(g,"CELL",20,120,62,&lv_font_montserrat_12,BLUE,LV_TEXT_ALIGN_LEFT);
+    text(g,"CELL",20,120,62,&pl_mono_12,BLUE,LV_TEXT_ALIGN_LEFT);
     line(g,233,263,335,295,BLUE,1);
-    text(g,"CYC",312,302,42,&lv_font_montserrat_12,BLUE,LV_TEXT_ALIGN_LEFT);
+    text(g,"CYC",312,302,42,&pl_mono_12,BLUE,LV_TEXT_ALIGN_LEFT);
 }
 
 static void cassette(surface_t g,const frame_t *f)
@@ -204,7 +205,7 @@ static void cassette(surface_t g,const frame_t *f)
     char track[24];
     snprintf(track,sizeof(track),"TRACK %d",f->status.track);
     centered(g,f->status.track>=500?track:"TRACK --",250,&lv_font_montserrat_24,AMBER);
-    centered(g,f->status.paused?"PAUSED":f->status.playing?"PLAYING":"STOPPED",281,&lv_font_montserrat_12,DIM);
+    centered(g,f->status.paused?"PAUSED":f->status.playing?"PLAYING":"STOPPED",281,&pl_mono_12,DIM);
 }
 
 static void containment(surface_t g,const frame_t *f)
@@ -218,7 +219,7 @@ static void containment(surface_t g,const frame_t *f)
         circle(g,x+(int)(cos(a)*112),y+(int)(sin(a)*112),7,i%2?GREEN:BLUE,0);
     }
     circle(g,x,y,26,0x182b24,condition(&f->status));
-    centered(g,"FIELD GRID",352,&lv_font_montserrat_12,GREEN);
+    centered(g,"FIELD GRID",352,&pl_mono_12,GREEN);
 }
 
 static void power_cell(surface_t g,const frame_t *f)
@@ -227,10 +228,10 @@ static void power_cell(surface_t g,const frame_t *f)
     rect(g,27,107,137,240,10,0x0a141b,0x436477);
     for(int i=0;i<13;i++) rect(g,43,121+i*16,104,11,2,
                               i>=13-f->status.power_level*2?BLUE:0x162a35,0);
-    text(g,"WAND LEVEL",188,143,155,&lv_font_montserrat_12,DIM,LV_TEXT_ALIGN_CENTER);
+    text(g,"WAND LEVEL",188,143,155,&pl_mono_12,DIM,LV_TEXT_ALIGN_CENTER);
     char level[12];
     snprintf(level,sizeof(level),"L-%d",f->status.power_level);
-    text(g,f->status.power_level?level:"L--",188,177,155,&lv_font_montserrat_48,BLUE,LV_TEXT_ALIGN_CENTER);
+    text(g,f->status.power_level?level:"L--",188,177,155,&pl_mono_48,BLUE,LV_TEXT_ALIGN_CENTER);
     text(g,f->status.pack_on?"PACK ON":"STANDBY",188,252,155,&lv_font_montserrat_24,DIM,LV_TEXT_ALIGN_CENTER);
 }
 
@@ -240,8 +241,8 @@ static void terminal(surface_t g,const frame_t *f)
     for(int y=14;y<374;y+=7) line(g,11,y,348,y,0x0d271a,1);
     int scan=13+(int)(f->time*65)%354;
     line(g,12,scan,348,scan,0x28543b,2);
-    text(g,"PROTONLINK BIOS / R1",22,22,315,&lv_font_montserrat_12,GREEN,LV_TEXT_ALIGN_LEFT);
-    centered(g,f->clock,56,&lv_font_montserrat_48,GREEN);
+    text(g,"PROTONLINK BIOS / R1",22,22,315,&pl_mono_12,GREEN,LV_TEXT_ALIGN_LEFT);
+    centered(g,f->clock,56,&pl_mono_48,GREEN);
     char status[72];
     snprintf(status,sizeof(status),"> PACK: %s",f->status.pack_on?"POWERED":"IDLE");
     text(g,status,24,153,310,&lv_font_montserrat_24,GREEN,LV_TEXT_ALIGN_LEFT);
@@ -268,7 +269,7 @@ static void marquee(surface_t g,const frame_t *f)
                                               bits&(16u>>col)?marquee_color:0x302611,0);
         }
     }
-    centered(g,"ELECTRONIC MARQUEE",28,&lv_font_montserrat_12,marquee_color);
+    centered(g,"ELECTRONIC MARQUEE",28,&pl_mono_12,marquee_color);
     centered(g,f->status.pack_on?"SYSTEM ACTIVE":"FIELD STANDBY",221,&lv_font_montserrat_24,marquee_color);
     for(int i=0;i<24;i++) circle(g,30+i*13,304,3,i<=(int)(f->time*5)%24 && f->status.pack_on?marquee_color:0x302611,0);
 }
@@ -281,7 +282,7 @@ static void mission(surface_t g,const frame_t *f)
     for(int i=0;i<3;i++) {
         int y=114+i*55;
         rect(g,16,y,328,45,5,0x111e23,STEEL);
-        text(g,names[i],26,y+12,115,&lv_font_montserrat_12,DIM,LV_TEXT_ALIGN_LEFT);
+        text(g,names[i],26,y+12,115,&pl_mono_12,DIM,LV_TEXT_ALIGN_LEFT);
         rect(g,135,y+16,185,12,2,0x25333a,0);
         if(levels[i]>0) rect(g,135,y+16,levels[i]*185/100,12,2,BLUE,0);
     }
@@ -302,8 +303,8 @@ static void diagnostics_art(surface_t g,const frame_t *f)
     line(g,253,100,282,85,!strcmp(s->cable,"Connected")?GREEN:RED,2);
     line(g,47,30,126,43,0x65939e,1);
     line(g,224,42,313,19,0x65939e,1);
-    text(g,"CELL",17,21,41,&lv_font_montserrat_12,BLUE,LV_TEXT_ALIGN_LEFT);
-    text(g,"CYC",317,13,35,&lv_font_montserrat_12,BLUE,LV_TEXT_ALIGN_LEFT);
+    text(g,"CELL",17,21,41,&pl_mono_12,BLUE,LV_TEXT_ALIGN_LEFT);
+    text(g,"CYC",317,13,35,&pl_mono_12,BLUE,LV_TEXT_ALIGN_LEFT);
     if(s->online) {
         int y=16+(int)(f->time*30)%87;
         line(g,113,y,246,y,0x315660,1);
@@ -344,7 +345,7 @@ static void draw_face(lv_event_t *e)
     case PL_FACE_MARQUEE: marquee(g,f); break;
     case PL_FACE_MINIMAL:
         centered(g,f->clock,129,&lv_font_montserrat_48,WHITE);
-        centered(g,f->date,204,&lv_font_montserrat_12,DIM);
+        centered(g,f->date,204,&pl_mono_12,DIM);
         break;
     case PL_FACE_MISSION: mission(g,f); break;
     default: radar(g,f); break;
@@ -352,7 +353,7 @@ static void draw_face(lv_event_t *e)
     const protonlink_status_t *s=&f->status;
     const char *status=!s->online?"TELEMETRY UNAVAILABLE":s->firing?"FIRING":
                         !strcmp(s->temperature,"Venting")?"VENT CYCLE":s->cyclotron;
-    centered(g,status,367,&lv_font_montserrat_12,condition(s));
+    centered(g,status,367,&pl_mono_12,condition(s));
 }
 
 static void delete_face(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }

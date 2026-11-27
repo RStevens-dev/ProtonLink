@@ -1,1 +1,1 @@
-idf_component_register(SRCS "main.c" "ui.c" "network.c" "telemetry.c" "control.c" "catalog.c" "faces.c" "options.c" INCLUDE_DIRS "." REQUIRES nvs_flash esp_wifi esp_event esp_netif esp_http_client esp_timer json)
+idf_component_register(SRCS "main.c" "ui.c" "network.c" "telemetry.c" "control.c" "catalog.c" "faces.c" "options.c" "fonts/pl_mono_12.c" "fonts/pl_mono_16.c" "fonts/pl_mono_24.c" "fonts/pl_mono_48.c" INCLUDE_DIRS "." REQUIRES nvs_flash esp_wifi esp_event esp_netif esp_http_client esp_timer json)

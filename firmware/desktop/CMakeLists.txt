@@ -25,7 +25,9 @@ FetchContent_Declare(cjson
 FetchContent_MakeAvailable(cjson)
 add_library(protonlink_json STATIC ${cjson_SOURCE_DIR}/cJSON.c)
 target_include_directories(protonlink_json PUBLIC ${cjson_SOURCE_DIR})
-add_executable(ProtonLinkDesktop desktop.c mock.c ../main/ui.c ../main/control.c ../main/catalog.c ../main/faces.c ../main/options.c ../main/telemetry.c)
+add_executable(ProtonLinkDesktop desktop.c mock.c ../main/ui.c ../main/control.c ../main/catalog.c ../main/faces.c ../main/options.c ../main/telemetry.c
+    ../main/fonts/pl_mono_12.c ../main/fonts/pl_mono_16.c
+    ../main/fonts/pl_mono_24.c ../main/fonts/pl_mono_48.c)
 target_include_directories(ProtonLinkDesktop PRIVATE ../main)
 target_compile_definitions(ProtonLinkDesktop PRIVATE PROTONLINK_DESKTOP=1 SDL_MAIN_HANDLED)
 target_link_libraries(ProtonLinkDesktop PRIVATE lvgl SDL2::SDL2-static protonlink_json)
