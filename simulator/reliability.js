@@ -2,7 +2,7 @@ import {initial,dispatch} from './model.js';
 import {simulate} from './lab.js';
 import {status} from './protocol.js';
 import {validateEntries,entriesOf} from './library.js';
-export const fresh=(last,now=Date.now())=>last>0&&now-last<=15000;
+export const fresh=(last,now=Date.now())=>last>0&&now-last<6000;
 export const linked=(s,cfg)=>!!(s.online&&cfg.gateway&&cfg.gatewayPower);
 export function classify(result){const ev=result.events;if(ev.some(e=>e.kind==="FAULT"))return "UNCERTAIN";if(ev.some(e=>/^4\d\d /.test(e.summary)))return "REJECTED";if(!ev.some(e=>e.summary.startsWith("PUT ")))return "NO REQUEST";if(ev.some(e=>e.summary==="200 OK · /status"&&e.body?.pack!==undefined))return "TELEMETRY RECEIVED";return ev.some(e=>e.summary.startsWith("200 OK · /"))?"ACKNOWLEDGED":"SENT"}
 export function commandGuard(s,cfg,a,stamp,now=Date.now()){if(s.locked)return "Field Lock";if(!linked(s,cfg))return "Equipment link unavailable";if(!fresh(stamp,now))return "Telemetry stale";if(a.type==="stream"&&!cfg.streams?.includes(a.value)&&cfg.streams)return "Unsupported stream";return ""}

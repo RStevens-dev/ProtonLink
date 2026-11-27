@@ -1,10 +1,20 @@
 // Independent local simulation. No networking or equipment access.
 export const initial = () => ({online:true,locked:true,pack:false,playing:false,paused:false,track:501,first:500,last:520,master:75,effects:80,music:70,muted:false,loop:false,shuffle:false,theme:"1984",stream:"Proton",smoke:false,vibration:true,direction:true,level:1,wand:true,wandPower:false,barrel:false,lid:true,ionArm:false,ramping:false,mode:"Upgraded",vgMode:true,cable:true,cyclotron:"Normal",temperature:"Normal",firing:false});
 export const streams=["Proton","Stasis","Slime","Meson","Spectral","Halloween","Christmas","Custom"];
-export function canChangeStream(s){return s.pack&&!s.firing&&!s.ramping&&s.temperature!=="Venting"&&s.cable&&s.mode!=="Standard"&&s.vgMode&&["Normal","Active"].includes(s.cyclotron)}
+export function packNormal(s){
+ return s.firing===false && s.lockout!==true && s.temperature==="Normal" && ["Normal","Active"].includes(s.cyclotron);
+}
+export function packTransitionReady(s){
+ return packNormal(s) && (s.ramping===false || (s.ramping==null && s.mode==="Super Hero"));
+}
+export function canChangeStream(s){
+ return s.pack===true && packNormal(s) && s.ramping===false && s.cable===true && s.vgMode===true &&
+   ["Upgraded","Super Hero"].includes(s.mode);
+}
 export const themes=["1984","1989","2021","2024"];
 const clamp=v=>Math.max(0,Math.min(100,v));
 export function dispatch(s,a) {
+ if(a.type==="vent-recovered")return s.temperature==="Venting"?{...s,temperature:"Normal",cyclotron:s.cyclotron==="Recovery"?"Normal":s.cyclotron}:s;
  if(a.type==="lock") return {...s,locked:true};
  if(a.type==="unlock") return s.online?{...s,locked:false}:s;
  if(a.type==="scenario"){
@@ -32,9 +42,9 @@ export function dispatch(s,a) {
   }
  }
  if(s.locked||!s.online)return s;
- const normal=["Normal","Active"].includes(s.cyclotron)&&!s.firing&&s.temperature!=="Venting";
+ const normal=packNormal(s)&&s.ramping===false;
  switch(a.type){
- case "power":return a.confirmed&&normal&&!s.ramping&&s.pack!==!!a.value?{...s,pack:!!a.value,wandPower:a.value?s.wandPower:false,firing:false}:s;
+ case "power":return a.confirmed&&packTransitionReady(s)&&s.pack!==!!a.value?{...s,pack:!!a.value,wandPower:a.value?s.wandPower:false,firing:false}:s;
  case "play":return {...s,playing:true,paused:false};
  case "stop":return {...s,playing:false,paused:false};
  case "pause":return s.playing?{...s,paused:!s.paused}:s;
@@ -48,9 +58,9 @@ export function dispatch(s,a) {
  case "theme":return normal&&!s.pack&&!s.wandPower&&!s.ramping&&themes.includes(a.value)?{...s,theme:a.value}:s;
  case "stream":return canChangeStream(s)&&streams.includes(a.value)?{...s,stream:a.value}:s;
  case "smoke":return normal&&(!a.value||a.confirmed)?{...s,smoke:!!a.value}:s;
- case "vibration":return {...s,vibration:!s.vibration};
+ case "vibration":return normal?{...s,vibration:!s.vibration}:s;
  case "direction":return normal?{...s,direction:!s.direction}:s;
- case "vent":return a.confirmed&&s.pack&&normal?{...s,temperature:"Venting",cyclotron:"Recovery"}:s;
+ case "vent":return a.confirmed&&s.pack&&packTransitionReady(s)?{...s,temperature:"Venting",cyclotron:"Recovery"}:s;
  default:return s;
  }
 }

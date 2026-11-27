@@ -16,7 +16,7 @@ export function route(s,a){switch(a.type){
  case "loop":return "/music/loop/"+(s.loop?"all":"one");
  case "shuffle":return "/music/shuffle/"+(s.shuffle?"off":"on");
  case "mute":return "/volume/"+(s.muted?"unmute":"mute");
- case "volume":if(a.value===s[a.channel])return null;return a.channel==="master"?"/volume/master/set/"+Math.max(0,Math.min(100,a.value)):"/volume/"+a.channel+"/"+(a.value>s[a.channel]?"up":"down");
+ case "volume":if(a.value===s[a.channel])return null;return a.channel==="master"&&!a.incremental?"/volume/master/set/"+Math.max(0,Math.min(100,a.value)):"/volume/"+a.channel+"/"+(a.value>s[a.channel]?"up":"down");
  case "theme":return "/pack/theme/"+a.value;
  case "stream":return streamPaths[a.value]?"/pack/stream/"+streamPaths[a.value]:null;
  case "smoke":return "/pack/smoke/"+(a.value?"on":"off");
@@ -36,7 +36,7 @@ export function exchange(s,a){
  if(a.type==="theme"&&(s.pack||s.wandPower||s.ramping))return {state:s,events:[...events,entry("LOCAL","Watch","Theme change blocked while pack powered · no request sent",a)]};
  const path=route(s,a);
  if(!path)return {state:s,events:[...events,entry("LOCAL","Watch","No request required or unsupported intent",a)]};
- const effective=a.type==='volume'?nextVolumeIntent(a.channel,s[a.channel],a.value):a;
+ const effective=a.type==='volume'?nextVolumeIntent(a.channel,s[a.channel],a.value,a.incremental===true):a;
  if(!effective)return {state:s,events:[...events,entry('LOCAL','Watch','Volume already at target or no reachable step',a)]};
  const next=dispatch(s,effective);
  if(next===s)return {state:s,events:[...events,entry("LOCAL","Watch","Command rejected by local guard · no request sent",a)]};
@@ -52,7 +52,7 @@ export function exchange(s,a){
  // Symbolic serial messages, not captured wire bytes.
  export function serialCommand(s,a){
  const names={power:a.value?"A_TURN_PACK_ON":"A_TURN_PACK_OFF",play:s.paused?"A_MUSIC_PAUSE_RESUME":"A_MUSIC_START_STOP",stop:"A_MUSIC_START_STOP",pause:"A_MUSIC_PAUSE_RESUME",next:"A_MUSIC_NEXT_TRACK",prev:"A_MUSIC_PREV_TRACK",track:"A_MUSIC_PLAY_TRACK",loop:"A_MUSIC_TRACK_LOOP_TOGGLE",shuffle:"A_MUSIC_TRACK_SHUFFLE_TOGGLE",mute:"A_TOGGLE_MUTE",direction:"A_CYCLOTRON_DIRECTION_TOGGLE",vent:"A_MANUAL_OVERHEAT",stream:"A_SET_STREAM_MODE",theme:({1984:"A_YEAR_1984",1989:"A_YEAR_1989",2021:"A_YEAR_AFTERLIFE",2024:"A_YEAR_FROZEN_EMPIRE"})[a.value]};
- if(a.type==="volume"){if(a.channel==="master")return {name:"A_VOLUME_SET",data:a.value};return {name:"A_VOLUME_"+(a.channel==="effects"?"SOUND_EFFECTS":"MUSIC")+"_"+(a.value>s[a.channel]?"INCREASE":"DECREASE")}}
+ if(a.type==="volume"){if(a.channel==="master"&&!a.incremental)return {name:"A_VOLUME_SET",data:a.value};return {name:"A_VOLUME_"+(a.channel==="master"?"MASTER":a.channel==="effects"?"SOUND_EFFECTS":"MUSIC")+"_"+(a.value>s[a.channel]?"INCREASE":"DECREASE")}}
  if(!names[a.type])return null;
  const data=a.type==="track"?a.value:a.type==="loop"?(s.loop?1:2):a.type==="shuffle"?(s.shuffle?1:2):a.type==="mute"?(s.muted?1:2):a.type==="direction"?(s.direction?1:2):undefined;
  return {name:names[a.type],data};

@@ -36,6 +36,8 @@ Reference: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/tree/main
 ## Visual parity
 The native Industrial Control panel follows `simulator/quick.js` and the `.quick-*` styles in `simulator/index.html`. Disabled controls use a grayscale filter that keeps the underlying luminance and gradients. START, STOP, and VENT retain their one-second hold and progress meters. Field Lock keeps the two-second hold, release, and swipe sequence.
 
+The browser watch follows the native startup lock, hold timing, six-second telemetry expiry, and pack transition guards. Its simulated vent recovers after four seconds, matching the native desktop mock. The browser watch faders use guarded incremental writes for all three channels. The browser bench still offers reference routes and simulated faults separately from the watch controls.
+
 The status bar opens COMMAND with Pack Info, Music, Mixer, Diagnostics, and Settings. Pack Info includes a guarded Manual Vent and a telemetry-based Startup Check. Music and Quick Control share a paginated track library with current-track favorites and selection by reported track ID. The three-channel mixer and four audio presets use the existing guarded volume queue. Settings offers main-screen selection, reduced motion, and Quick Control module ordering and visibility.
 
 Display Settings provides all eleven browser face variants using native LVGL drawing, plus optional automatic alarm, vent, and firing faces, PKE contact labels, reduced motion, marquee colors, and swipe navigation. Diagnostics and Music include pack and transport graphics. ESP32 display preferences are stored locally. The desktop simulator keeps settings in memory.
