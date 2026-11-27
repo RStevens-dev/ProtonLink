@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.21)
+project(ProtonLinkDesktop LANGUAGES C CXX)
+set(CMAKE_C_STANDARD 11)
+include(FetchContent)
+option(PROTONLINK_BOUNDED_MEMORY "Use a 2 MiB LVGL pool" OFF)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL_TEST OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(SDL2 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-2.32.10 GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(SDL2)
+set(LV_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h" CACHE FILEPATH "" FORCE)
+set(LV_CONF_BUILD_DISABLE_EXAMPLES ON CACHE BOOL "" FORCE)
+set(LV_CONF_BUILD_DISABLE_DEMOS ON CACHE BOOL "" FORCE)
+FetchContent_Declare(lvgl GIT_REPOSITORY https://github.com/lvgl/lvgl.git GIT_TAG v9.5.0 GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(lvgl)
+if(PROTONLINK_BOUNDED_MEMORY)
+    target_compile_definitions(lvgl PUBLIC PROTONLINK_BOUNDED_MEMORY=1)
+endif()
+target_link_libraries(lvgl PUBLIC SDL2::SDL2-static)
+FetchContent_Declare(cjson
+    GIT_REPOSITORY https://github.com/DaveGamble/cJSON.git
+    GIT_TAG v1.7.19
+    GIT_SHALLOW TRUE
+    SOURCE_SUBDIR protonlink-no-cmake)
+FetchContent_MakeAvailable(cjson)
+add_library(protonlink_json STATIC ${cjson_SOURCE_DIR}/cJSON.c)
+target_include_directories(protonlink_json PUBLIC ${cjson_SOURCE_DIR})
+add_executable(ProtonLinkDesktop desktop.c mock.c ../main/ui.c ../main/control.c ../main/catalog.c ../main/faces.c ../main/options.c ../main/telemetry.c
+    ../main/fonts/pl_mono_12.c ../main/fonts/pl_mono_16.c
+    ../main/fonts/pl_mono_24.c ../main/fonts/pl_mono_48.c)
+target_include_directories(ProtonLinkDesktop PRIVATE ../main)
+target_compile_definitions(ProtonLinkDesktop PRIVATE PROTONLINK_DESKTOP=1 SDL_MAIN_HANDLED)
+target_link_libraries(ProtonLinkDesktop PRIVATE lvgl SDL2::SDL2-static protonlink_json)

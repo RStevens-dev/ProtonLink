@@ -5,6 +5,51 @@ test.beforeAll(async()=>{server=spawn('python',['-m','http.server','8765'],{stdi
 test.afterAll(()=>server?.kill());
 test('boot, unlock, industrial transport and lock',async({page})=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1500,height:900});await page.goto('http://127.0.0.1:8765/simulator/');await expect(page.locator('#fieldCanvas')).toBeVisible();await expect(page.locator('#bootLayer')).toBeHidden();const r=await page.locator('#body').boundingBox();await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();await page.waitForTimeout(2100);await page.mouse.up();await page.mouse.move(r.x+r.width*.8,r.y+r.height*.5);await page.mouse.down();await page.mouse.move(r.x+r.width*.2,r.y+r.height*.5,{steps:8});await page.mouse.up();await expect(page.locator('.quick-channel')).toHaveCount(3);await expect(page.locator('[data-quick="vent"]')).toBeVisible();await expect(page.locator('.quick-transport')).toBeVisible();await page.locator('.quick-keys [data-act="play"]').click();await expect(page.locator('.quick-keys [data-act="stop"]')).toBeVisible();await page.locator('#quickDots').click();await expect(page.locator('#fieldCanvas')).toBeVisible();await page.locator('#quickDots').click();await expect(page.locator('.quick-transport')).toBeVisible();expect(errors).toEqual([])});
 
+test('native hold, vent recovery, and drag-to-target volume behavior',async({page})=>{
+ await page.setViewportSize({width:1500,height:900});
+ await page.goto('http://127.0.0.1:8765/simulator/');
+ const r=await page.locator('#body').boundingBox();
+ const hold=async(locator,ms)=>{
+  const rect=await locator.boundingBox();
+  await page.mouse.move(rect.x+rect.width/2,rect.y+rect.height/2);
+  await page.mouse.down();
+  await page.waitForTimeout(ms);
+  await page.mouse.up();
+ };
+ await hold(page.locator('#body'),2100);
+ await page.mouse.move(r.x+r.width*.8,r.y+r.height*.5);
+ await page.mouse.down();
+ await page.mouse.move(r.x+r.width*.2,r.y+r.height*.5,{steps:8});
+ await page.mouse.up();
+ const start=page.locator('[data-quick="on"]'),stop=page.locator('[data-quick="off"]');
+ await expect(start).toBeEnabled();
+ await hold(start,200);
+ await expect(stop).toBeDisabled();
+ await hold(start,1100);
+ await expect(stop).toBeEnabled();
+ await page.locator('.system-entry').click();
+ await page.locator('[data-act="go:pack"]').first().click();
+ await expect(page.locator('.pack-vent')).toBeEnabled();
+ await hold(page.locator('.pack-vent'),1100);
+ await expect(page.locator('.pack-vent')).toBeDisabled();
+ await page.locator('#head [data-act="go:home"]').click();
+ await page.locator('#foot [data-act="go:quick"]').click();
+ await expect(stop).toBeDisabled();
+ await expect(stop).toBeEnabled({timeout:6500});
+ const slider=page.locator('[data-fader="master"]');
+ const fader=await slider.boundingBox();
+ await page.mouse.move(fader.x+fader.width*.75,fader.y+fader.height/2);
+ await page.mouse.down();
+ await page.mouse.move(fader.x+fader.width*.35,fader.y+fader.height/2,{steps:6});
+ await expect(slider).toHaveAttribute('aria-valuenow','35');
+ await page.mouse.up();
+ await expect(page.locator('#volumeStatus')).toHaveText('Volume synchronized');
+ await expect(slider).toHaveAttribute('aria-valuenow','35');
+ await page.locator('#reset').click();
+ await expect(page.locator('#fieldCanvas')).toBeVisible();
+ await expect(start).toHaveCount(0);
+});
+
 test('field setup persists module visibility and favorites',async({page})=>{await page.setViewportSize({width:1500,height:900});await page.goto('http://127.0.0.1:8765/simulator/');await page.locator('[data-tab="field"]').click();await expect(page.locator('#moduleOrder input')).toHaveCount(4);await page.locator('#moduleOrder input').first().uncheck();await page.locator('#fieldSearch').fill('503');await expect(page.locator('#fieldTracks button')).toHaveCount(1);await page.locator('#fieldTracks button').click();await expect(page.locator('#fieldTracks button')).toHaveText('★');await page.reload();await page.locator('[data-tab="field"]').click();await expect(page.locator('#moduleOrder input').first()).not.toBeChecked()});
 
 test('display preferences, startup and observed session panel',async({page})=>{await page.setViewportSize({width:1500,height:900});await page.goto('http://127.0.0.1:8765/simulator/');await expect(page.locator('#bootLayer')).toBeHidden();await page.locator('[data-tab="immersion"]').click();await page.locator('#finishPick').selectOption('tactical');await expect(page.locator('#watch')).toHaveAttribute('data-finish','tactical');await page.locator('#filterPick').check();await expect(page.locator('#packGraphic')).toContainText('N-FILTER');await page.locator('#replayBoot').click();await expect(page.locator('#bootLayer')).toBeVisible();await page.locator('#skipBoot').click();await expect(page.locator('#bootLayer')).toBeHidden();await expect(page.locator('#fieldStats')).toContainText('Observed pack on');await page.reload();await expect(page.locator('#watch')).toHaveAttribute('data-finish','tactical')});

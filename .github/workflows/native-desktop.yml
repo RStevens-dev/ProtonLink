@@ -1,0 +1,64 @@
+name: Native desktop simulator
+on:
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - '.github/workflows/native-desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mac:
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install cmake
+      - run: cmake -S firmware/desktop -B build-desktop -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build-desktop --parallel 4
+      - name: Desktop smoke test
+        timeout-minutes: 2
+        run: build-desktop/ProtonLinkDesktop --smoke
+      - name: Build memory-constrained simulator
+        run: |
+          cmake -S firmware/desktop -B build-bounded -DCMAKE_BUILD_TYPE=Release -DPROTONLINK_BOUNDED_MEMORY=ON
+          cmake --build build-bounded --parallel 4
+      - name: Memory-constrained smoke test (2 MiB LVGL pool)
+        timeout-minutes: 2
+        run: build-bounded/ProtonLinkDesktop --smoke
+      - name: Package statically linked Mac executable
+        timeout-minutes: 3
+        run: |
+          mkdir -p dist
+          cp build-desktop/ProtonLinkDesktop dist/
+          cp build-desktop/_deps/sdl2-src/LICENSE.txt dist/SDL2-LICENSE.txt
+          cp build-desktop/_deps/cjson-src/LICENSE dist/cJSON-LICENSE
+          cp firmware/main/fonts/OFL.txt dist/IBM-Plex-OFL.txt
+          otool -L dist/ProtonLinkDesktop
+          if otool -L dist/ProtonLinkDesktop | grep -E 'libSDL2|/opt/homebrew/|/usr/local/'; then
+            echo "Unexpected non-system dynamic dependency"
+            exit 1
+          fi
+          codesign --force --sign - dist/ProtonLinkDesktop
+          codesign --verify --strict dist/ProtonLinkDesktop
+          ditto -c -k --keepParent dist ProtonLink-Mac-${{ matrix.arch }}.zip
+      - name: Smoke test extracted package
+        timeout-minutes: 2
+        run: |
+          archive="$PWD/ProtonLink-Mac-${{ matrix.arch }}.zip"
+          isolated="$(mktemp -d)"
+          ditto -x -k "$archive" "$isolated"
+          cd "$isolated/dist"
+          ./ProtonLinkDesktop --smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ProtonLink-Mac-${{ matrix.arch }}
+          path: ProtonLink-Mac-${{ matrix.arch }}.zip

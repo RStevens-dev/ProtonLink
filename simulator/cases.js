@@ -89,8 +89,9 @@ cases.push(
  ["Quick mode remains opt-in and returns from submenu inactivity",()=>{check(unlockPage("field")==="home"&&unlockPage("quick")==="quick"&&idlePage("quick","music")==="quick"&&idlePage("quick","monitor")===null&&idlePage("field","music")==="field","idle")}],
  ["Quick commands are blocked while locked or disconnected",()=>{check(!quickAllowed(initial(),"on")&&!quickAllowed({...open(),online:false},"on")&&quickAllowed(open(),"on"),"guards")}],
  ["Quick commands map to existing API intentions",()=>{check(quickIntent("on").value===true&&quickIntent("off").value===false&&quickIntent("vent").type==="vent","intent")}],
- ["Quick stop stays available during vent cycle",()=>{const s={...open(),pack:true,temperature:"Venting"};check(quickAllowed(s,"off")&&!quickAllowed(s,"vent")&&!quickAllowed(s,"on"),"vent guard")}],
- ["Quick markup contains three faders and menu and monitor entry",()=>{const s=open(),body=quickBody(s,["master","effects","music"],{},false),head=quickHeader(s,"12:00",4);check((body.match(/data-fader=/g)||[]).length===3&&head.includes('data-act="go:home"')&&head.includes('id="quickDots"'),"markup")}]
+ ["Quick pack buttons block through unsafe or unknown transitions",()=>{for(const state of [{temperature:"Venting"},{cyclotron:"Recovery"},{cyclotron:"Critical"},{ramping:true},{ramping:null},{firing:true},{lockout:true}]){const s={...open(),pack:true,...state};for(const action of ["off","vent","on"])check(!quickAllowed(s,action),action+" guard");check(dispatch(s,{type:"power",value:false,confirmed:true})===s,"model shutdown guard")}const legacy={...open(),mode:"Super Hero",ramping:null};check(quickAllowed(legacy,"on")&&!quickAllowed(legacy,"off"),"legacy standby")}],
+ ["Quick markup contains three faders and menu and monitor entry",()=>{const s=open(),body=quickBody(s,["master","effects","music"],{},false),head=quickHeader(s,"12:00",4);check((body.match(/data-fader=/g)||[]).length===3&&head.includes('data-act="go:home"')&&head.includes('id="quickDots"'),"markup")}],
+ ["Quick pack buttons keep accessible hold instructions and progress without visible HOLD",()=>{const body=quickBody(open(),["master","effects","music"],{},false);check(!body.includes(">HOLD<")&&(body.match(/aria-label="Hold to /g)||[]).length===3&&(body.match(/class="quick-progress"/g)||[]).length===3,"hold markup")}]
 );
 cases.push(
  ["Industrial transport displays named track and actual ID",()=>{const s=open(),h=quickTransport(s,false,"A & B");check(h.includes(String(s.track))&&h.includes("A &amp; B")&&h.includes('data-act="go:quicklibrary"'),"track readout")}],
@@ -99,7 +100,7 @@ cases.push(
  ["Industrial transport blocks writes while offline",()=>{const h=quickTransport({...open(),online:false},false,"A");check((h.match(/ disabled/g)||[]).length===4,"offline guard")}]
 );
 cases.push(
- ["Telemetry expires after 15 seconds",()=>{check(fresh(1000,16000)&&!fresh(1000,16001),"freshness")}],
+ ["Telemetry expires at the native six-second threshold",()=>{check(fresh(1000,6999)&&!fresh(1000,7000),"freshness")}],
  ["Stale telemetry blocks commands",()=>{check(commandGuard(open(),defaults(),{type:"play"},1000,20000)==="Telemetry stale","guard")}],
  ["Dropped response classified uncertain",()=>{check(classify(simulate(open(),{type:"play"},{fault:"response"}))==="UNCERTAIN","classification")}],
  ["Configuration backup round trip",()=>{const x=parseBackup(JSON.stringify(backup("pke",{mainMode:"quick"},{local:{500:"Theme"},synced:{},auto:true},{})));check(x.trackStore.local[500]==="Theme"&&x.preferences.mainMode==="quick","backup")}],

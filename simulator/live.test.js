@@ -5,7 +5,7 @@ import {commandPath,outcome,sendCommand} from './commands.js';
 import {hardwareProfile} from './hardware.js';
 test('legacy discovery requests preferences before reading',async()=>{const calls=[];const p=await discover({get:async k=>{calls.push(k);return {prefsAvailable:true,smokeEnabled:true,cyclotronDirection:1}}},()=>true,async()=>{});assert.deepEqual(calls,['settings/pack','config/pack','settings/wand','config/wand','settings/smoke','config/smoke']);assert.equal(configured(p).smoke,true);assert.equal(configured({smoke:{prefsAvailable:false,smokeEnabled:false}}).smoke,null)});
 test('duplicate prefix retains positional track with warning',()=>{const x=deviceTracks({songList:'513 Saving Repeat\n513 thunderstruck'},513,514);assert.equal(x.names[514],'thunderstruck');assert.equal(x.warnings.length,1)});
-test('explicit command and outcome are independent',async()=>{assert.equal(commandPath({}, {type:'smoke',value:false}),'/pack/smoke/off');assert.throws(()=>commandPath({}, {type:'smoke'}));assert.equal(outcome({}, {online:true,smoke:null},{type:'smoke',value:false}),'ACKNOWLEDGED / UNOBSERVABLE');assert.equal(outcome({}, {online:true,pack:true},{type:'power',value:true}),'CONFIRMED');await sendCommand('/pack/on',async(path,opts)=>{assert.equal(path,'/bridge/pack/on');assert.equal(opts.method,'PUT');return {ok:true,json:async()=>({status:'success'})}})});
+test('explicit command and outcome are independent',async()=>{assert.equal(commandPath({...initial(),smoke:true}, {type:'smoke',value:false}),'/pack/smoke/off');assert.throws(()=>commandPath({}, {type:'smoke'}));assert.equal(outcome({}, {online:true,smoke:null},{type:'smoke',value:false}),'ACKNOWLEDGED / UNOBSERVABLE');assert.equal(outcome({}, {online:true,pack:true},{type:'power',value:true}),'CONFIRMED');await sendCommand('/pack/on',async(path,opts)=>{assert.equal(path,'/bridge/pack/on');assert.equal(opts.method,'PUT');return {ok:true,json:async()=>({status:'success'})}})});
 test('hardware counts only from synchronized preferences',()=>{assert.deepEqual(hardwareProfile({pack:{prefsAvailable:true,ledCycLidCount:20,ledCycCakeCount:35,ledPowercellCount:15,ledCycCavCount:0},wand:{prefsAvailable:true,numBargraphSegments:28}}),{outer:20,inner:35,cell:15,bargraph:28,cavity:0});assert.equal(hardwareProfile({pack:{prefsAvailable:false,ledCycLidCount:20}}).outer,null)});
 
 test('legacy pack preferences can arrive on the final poll while the pack is off', async () => {
@@ -88,12 +88,12 @@ test('legacy Super Hero power uses explicit on/off routes and preserves transiti
   assert.throws(()=>commandPath(state,{...power,confirmed:false}));
 });
 
-test('legacy master steps and stream eligibility use observed state', () => {
-  const s={...initial(),pack:true,mode:'Super Hero',ramping:null,vgMode:null,master:40};
+test('master steps and stream eligibility require observed state', () => {
+  const s={...initial(),pack:true,mode:'Super Hero',ramping:false,vgMode:true,canChangeStream:true,master:40};
   assert.equal(commandPath(s,{type:'volume',channel:'master',value:45,incremental:true}),'/volume/master/up');
   assert.equal(commandPath(s,{type:'volume',channel:'master',value:35,incremental:true}),'/volume/master/down');
   assert.equal(commandPath(s,{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
-  for(const change of [{ramping:true},{vgMode:false},{firing:true},{pack:false}]) {
+  for(const change of [{ramping:true},{ramping:null},{vgMode:false},{vgMode:null},{canChangeStream:null},{canChangeStream:false},{lockout:true},{firing:true},{pack:false}]) {
     assert.throws(()=>commandPath({...s,...change},{type:'stream',value:'Stasis'}));
   }
 });
@@ -106,11 +106,19 @@ test('live master slider replans each step from the reported value', () => {
   assert.equal(nextVolumeIntent('master',45,45,true),null);
 });
 
-test('legacy year changes require idle equipment',()=>{
- const idle={...initial(),mode:'Super Hero',ramping:null,pack:false,wandPower:false};
+test('year changes require positively reported idle equipment',()=>{
+ const idle={...initial(),mode:'Super Hero',ramping:false,pack:false,wandPower:false};
  const year={type:'theme',value:'1989'};
  assert.equal(commandPath(idle,year),'/pack/theme/1989');
- for(const change of [{pack:true},{wandPower:true},{ramping:true},{firing:true}])assert.throws(()=>commandPath({...idle,...change},year));
+ for(const change of [{pack:true},{wandPower:true},{ramping:true},{ramping:null},{lockout:true},{firing:true}])assert.throws(()=>commandPath({...idle,...change},year));
+});
+
+test('optional routes require a reported setting and suppress no-op writes',()=>{
+ const s={...initial(),muted:false};
+ assert.equal(commandPath(s,{type:'mute',value:true}),'/volume/mute');
+ assert.equal(commandPath(s,{type:'mute',value:false}),null);
+ assert.throws(()=>commandPath({...s,muted:null},{type:'mute',value:true}));
+ assert.throws(()=>commandPath({...s,pack:true,ramping:true},{type:'vent',confirmed:true}));
 });
 
 import {decodeStatus,capabilitySummary} from './live.js';
@@ -128,6 +136,16 @@ test('legacy and extended status preserve unknown and authoritative fields',()=>
  assert.equal(extended.temperature,'Unknown');
  assert.throws(()=>commandPath(extended,{type:'vent',confirmed:true}));
  assert.throws(()=>commandPath({...legacy,canChangeStream:false},{type:'stream',value:'Stasis'}));
- assert.equal(commandPath({...legacy,canChangeStream:true},{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
+ assert.throws(()=>commandPath({...legacy,canChangeStream:true},{type:'stream',value:'Stasis'}));
+ assert.equal(commandPath({...legacy,canChangeStream:true,vgMode:true,ramping:false},{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
  assert.equal(capabilitySummary({audioCorrupt:true,audioOutdated:false},null).audioCorrupt,true);
+});
+
+test('volume confirmation keeps stepping on observed progress toward the drag target',()=>{
+ const before={master:30}, drag={type:'volume',channel:'master',value:35,target:45};
+ for(const master of [32,35,40,45]) assert.equal(outcome(before,{online:true,master},drag),'CONFIRMED');
+ for(const master of [25,30,50]) assert.equal(outcome(before,{online:true,master},drag),'ACKNOWLEDGED / NOT CONFIRMED');
+ const lower={type:'volume',channel:'master',value:25,target:15};
+ assert.equal(outcome(before,{online:true,master:22},lower),'CONFIRMED');
+ assert.equal(outcome(before,{online:true,master:10},lower),'ACKNOWLEDGED / NOT CONFIRMED');
 });
