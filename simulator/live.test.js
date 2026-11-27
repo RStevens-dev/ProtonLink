@@ -140,3 +140,12 @@ test('legacy and extended status preserve unknown and authoritative fields',()=>
  assert.equal(commandPath({...legacy,canChangeStream:true,vgMode:true,ramping:false},{type:'stream',value:'Stasis'}),'/pack/stream/stasis');
  assert.equal(capabilitySummary({audioCorrupt:true,audioOutdated:false},null).audioCorrupt,true);
 });
+
+test('volume confirmation keeps stepping on observed progress toward the drag target',()=>{
+ const before={master:30}, drag={type:'volume',channel:'master',value:35,target:45};
+ for(const master of [32,35,40,45]) assert.equal(outcome(before,{online:true,master},drag),'CONFIRMED');
+ for(const master of [25,30,50]) assert.equal(outcome(before,{online:true,master},drag),'ACKNOWLEDGED / NOT CONFIRMED');
+ const lower={type:'volume',channel:'master',value:25,target:15};
+ assert.equal(outcome(before,{online:true,master:22},lower),'CONFIRMED');
+ assert.equal(outcome(before,{online:true,master:10},lower),'ACKNOWLEDGED / NOT CONFIRMED');
+});

@@ -292,7 +292,8 @@ static void execute_request(command_request_t *req)
         send_path(req,path);
         return;
     }
-    for (int step=0;step<20;step++) {
+    /* Each confirmed step changes the integer percentage toward the target. */
+    for (int step=0;step<100;step++) {
         int prior=pl_volume_value(&fresh,req->channel);
         const char *path=pl_volume_step(&fresh,req->channel,req->target);
         if (!path || !send_path(req,path)) break;

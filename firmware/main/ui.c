@@ -70,6 +70,7 @@ static int library_offset, library_first=-1, library_last=-1, library_current=-1
 static uint32_t volume_due[3];
 static int volume_target[3];
 static bool volume_pending[3];
+static int volume_inflight=-1, volume_inflight_target;
 static uint32_t notice_at;
 static const char *notice;
 static void update_library(void);
@@ -97,11 +98,16 @@ static void slider_event(lv_event_t *event)
         page_entered=lv_tick_get();
         dragging[channel]=true;
     }
-    if (code==LV_EVENT_VALUE_CHANGED && dragging[channel]) { int v=(int)lv_slider_get_value(levels[i]); lv_label_set_text_fmt(level_labels[i],"%d",v); if(i<3) update_leds(i,v); }
+    if (code==LV_EVENT_VALUE_CHANGED && dragging[channel]) {
+        page_entered=lv_tick_get();
+        int v=((int)lv_slider_get_value(levels[i])+2)/5*5;
+        lv_label_set_text_fmt(level_labels[i],"%d",v);
+        if(i<3) update_leds(i,v);
+    }
     if (code==LV_EVENT_PRESS_LOST) dragging[channel]=false;
     if (code==LV_EVENT_RELEASED && dragging[channel]) {
         dragging[channel]=false;
-        int target=(int)lv_slider_get_value(levels[i]);
+        int target=((int)lv_slider_get_value(levels[i])+2)/5*5;
         if (!field_locked && ui_online && pl_is_unlocked()) { volume_target[channel]=target; volume_pending[channel]=true; volume_due[channel]=lv_tick_get(); }
     }
 }
@@ -131,6 +137,7 @@ static void engage_lock(void)
     gesture_active=false; gesture_done=true;
     audio_reduced=false;
     lv_label_set_text(reduction_label,"TEMPORARY 50% AUDIO REDUCTION");
+    volume_inflight=-1;
     for(int i=0;i<3;i++) { volume_pending[i]=false; dragging[i]=false; }
     lv_bar_set_value(field_progress,0,LV_ANIM_OFF);
     lv_label_set_text(lock_label,"HOLD TO UNLOCK");
@@ -248,8 +255,24 @@ static void refresh(lv_timer_t *timer)
     update_song_sync(&s);
     bool armed = ui_online && pl_is_unlocked();
     bool busy=pl_busy();
-    for(int i=0;i<3;i++) if(volume_pending[i] && !dragging[i] && lv_tick_elaps(volume_due[i])>=600 && armed && !busy) {
-        volume_pending[i]=false; notice=pl_request_volume(i,volume_target[i])?"VOLUME REQUEST QUEUED":"VOLUME UNCHANGED / BLOCKED"; notice_at=lv_tick_get(); busy=pl_busy(); break;
+    if(volume_inflight>=0 && !busy) {
+        notice=pl_volume_value(&s,volume_inflight)==volume_inflight_target?"VOLUME MATCHED":"VOLUME STOPPED / CHECK LEVEL";
+        notice_at=lv_tick_get();
+        volume_inflight=-1;
+    }
+    if(armed && !busy && !dragging[0] && !dragging[1] && !dragging[2]) {
+        for(int i=0;i<3;i++) {
+            if(!volume_pending[i] || lv_tick_elaps(volume_due[i])<600) continue;
+            volume_pending[i]=false;
+            if(pl_volume_value(&s,i)==volume_target[i]) notice="VOLUME MATCHED";
+            else if(pl_request_volume(i,volume_target[i])) {
+                volume_inflight=i;
+                volume_inflight_target=volume_target[i];
+                busy=pl_busy();
+            } else notice="VOLUME REQUEST BLOCKED";
+            notice_at=lv_tick_get();
+            break;
+        }
     }
     if(!field_locked && !armed && ui_online) {
 #if defined(CONFIG_PROTONLINK_ENABLE_CONTROL) || defined(PROTONLINK_DESKTOP)
@@ -275,7 +298,7 @@ static void refresh(lv_timer_t *timer)
     if(active_page==diagnostics) pl_face_update(diagnostics_art,PL_ART_DIAGNOSTICS,&s,stamp,date,reduced_motion);
     if(active_page==music_page) pl_face_update(music_art,PL_ART_TRANSPORT,&s,stamp,date,reduced_motion);
 #if defined(CONFIG_PROTONLINK_ENABLE_CONTROL) || defined(PROTONLINK_DESKTOP)
-    lv_label_set_text(status_label, armed ? (busy ? "SYNCING" : notice && lv_tick_elaps(notice_at)<2500 ? notice : "Adjust volume / 0.6s idle") : "FIELD LOCK");
+    lv_label_set_text(status_label, armed ? (volume_inflight>=0 ? "ADJUSTING VOLUME" : busy ? "SYNCING" : notice && lv_tick_elaps(notice_at)<2500 ? notice : "Adjust volume / 0.6s idle") : "FIELD LOCK");
 #else
     lv_label_set_text(status_label, "READ ONLY");
 #endif
@@ -295,15 +318,18 @@ static void refresh(lv_timer_t *timer)
         }
         lv_obj_set_style_bg_color(transport_light,lv_color_hex(s.paused?0xe6b75e:s.playing?0x8bd89f:0x303d36),0);
         for(int i=0;i<4;i++) { uint32_t c=s.pack_on && i==(reduced_motion?0:(int)((lv_tick_get()/250)%4))?0xff5949:0x452622; lv_obj_set_style_bg_color(dots[i],lv_color_hex(c),0); lv_obj_set_style_bg_color(lv_obj_get_child(monitor_dots,i),lv_color_hex(c),0); }
-        int v[] = {s.master,s.effects,s.music};
-        for (int i=0;i<3;i++) {
-            if ((!dragging[i] && !volume_pending[i]) || !armed) {
-                dragging[i]=false;
-                lv_slider_set_value(levels[i],v[i],LV_ANIM_OFF);
-                lv_slider_set_value(levels[i+3],v[i],LV_ANIM_OFF);
-                lv_label_set_text_fmt(level_labels[i+3],"%d",v[i]);
-                lv_label_set_text_fmt(level_labels[i],"%d",v[i]); update_leds(i,v[i]);
-            }
+        int reported[] = {s.master,s.effects,s.music};
+        for(int i=0;i<3;i++) {
+            if(dragging[i] && armed) continue;
+            dragging[i]=false;
+            int displayed=reported[i];
+            if(armed && volume_pending[i]) displayed=volume_target[i];
+            else if(armed && volume_inflight==i) displayed=volume_inflight_target;
+            lv_slider_set_value(levels[i],displayed,LV_ANIM_OFF);
+            lv_slider_set_value(levels[i+3],displayed,LV_ANIM_OFF);
+            lv_label_set_text_fmt(level_labels[i],"%d",displayed);
+            lv_label_set_text_fmt(level_labels[i+3],"%d",displayed);
+            update_leds(i,displayed);
         }
         lv_label_set_text(play_label,s.playing ? "STOP" : "START");
         lv_obj_set_style_text_color(buttons[PL_PLAY_STOP],lv_color_hex(s.playing?0xe86b57:0x8bd89f),0);
@@ -327,9 +353,9 @@ static void refresh(lv_timer_t *timer)
     }
     update_subsystems(&s,armed,busy);
     for(int i=0;i<6;i++) {
-        lv_obj_set_state(levels[i],LV_STATE_DISABLED,!armed || busy);
-        if(i<3) lv_obj_set_state(quick_modules[i],LV_STATE_DISABLED,!armed || busy);
-        else lv_obj_set_state(level_labels[i],LV_STATE_DISABLED,!armed || busy);
+        lv_obj_set_state(levels[i],LV_STATE_DISABLED,!armed || (busy && volume_inflight<0));
+        if(i<3) lv_obj_set_state(quick_modules[i],LV_STATE_DISABLED,!armed || (busy && volume_inflight<0));
+        else lv_obj_set_state(level_labels[i],LV_STATE_DISABLED,!armed || (busy && volume_inflight<0));
     }
     for(int i=0;i<=PL_NEXT;i++) {
         bool disabled=!armed || busy || !pl_command_path((pl_action_t)i,&s);

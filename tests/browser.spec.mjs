@@ -5,7 +5,7 @@ test.beforeAll(async()=>{server=spawn('python',['-m','http.server','8765'],{stdi
 test.afterAll(()=>server?.kill());
 test('boot, unlock, industrial transport and lock',async({page})=>{const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1500,height:900});await page.goto('http://127.0.0.1:8765/simulator/');await expect(page.locator('#fieldCanvas')).toBeVisible();await expect(page.locator('#bootLayer')).toBeHidden();const r=await page.locator('#body').boundingBox();await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();await page.waitForTimeout(2100);await page.mouse.up();await page.mouse.move(r.x+r.width*.8,r.y+r.height*.5);await page.mouse.down();await page.mouse.move(r.x+r.width*.2,r.y+r.height*.5,{steps:8});await page.mouse.up();await expect(page.locator('.quick-channel')).toHaveCount(3);await expect(page.locator('[data-quick="vent"]')).toBeVisible();await expect(page.locator('.quick-transport')).toBeVisible();await page.locator('.quick-keys [data-act="play"]').click();await expect(page.locator('.quick-keys [data-act="stop"]')).toBeVisible();await page.locator('#quickDots').click();await expect(page.locator('#fieldCanvas')).toBeVisible();await page.locator('#quickDots').click();await expect(page.locator('.quick-transport')).toBeVisible();expect(errors).toEqual([])});
 
-test('native pack holds reject short presses and block stop until vent recovery',async({page})=>{
+test('native hold, vent recovery, and drag-to-target volume behavior',async({page})=>{
  await page.setViewportSize({width:1500,height:900});
  await page.goto('http://127.0.0.1:8765/simulator/');
  const r=await page.locator('#body').boundingBox();
@@ -36,6 +36,15 @@ test('native pack holds reject short presses and block stop until vent recovery'
  await page.locator('#foot [data-act="go:quick"]').click();
  await expect(stop).toBeDisabled();
  await expect(stop).toBeEnabled({timeout:6500});
+ const slider=page.locator('[data-fader="master"]');
+ const fader=await slider.boundingBox();
+ await page.mouse.move(fader.x+fader.width*.75,fader.y+fader.height/2);
+ await page.mouse.down();
+ await page.mouse.move(fader.x+fader.width*.35,fader.y+fader.height/2,{steps:6});
+ await expect(slider).toHaveAttribute('aria-valuenow','35');
+ await page.mouse.up();
+ await expect(page.locator('#volumeStatus')).toHaveText('Volume synchronized');
+ await expect(slider).toHaveAttribute('aria-valuenow','35');
  await page.locator('#reset').click();
  await expect(page.locator('#fieldCanvas')).toBeVisible();
  await expect(start).toHaveCount(0);

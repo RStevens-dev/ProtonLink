@@ -403,18 +403,27 @@ async function flushVolumes(){
    const job=volumeQueue[k];if(!job)continue;
    // Read current state before planning incremental commands.
    if(liveMode){if(liveBusy){await new Promise(r=>setTimeout(r,100));continue}await pollReal()}else resync();
-   for(let count=0;count<20;count++){
+   // Live steps can be smaller than the modeled 5%. Each observed step must move toward the target.
+   const maxSteps=liveMode?100:20;
+   for(let count=0;count<maxSteps;count++){
     if(generation!==volumeGeneration||s.locked||!s.online||!cfg.gateway||volumeQueue[k]!==job)break;
     if(volumeDrag?.channel===k)break;
-    const intent=nextVolumeIntent(k,cached[k],job.target,true);
+    const current=cached[k];
+    const intent=liveMode?
+      (current===job.target?null:{type:"volume",channel:k,value:job.target}):
+      nextVolumeIntent(k,current,job.target,true);
     if(intent&&k==="master")intent.incremental=true;
     if(!intent){delete volumeQueue[k];volumeMessage=cached[k]===job.target?"Volume synchronized":"Nearest supported volume reached";break}
+    intent.target=job.target;
     volumeMessage="Sending "+k+" · "+cached[k]+" → "+intent.value+"%";paintVolumes();
     const old=cached[k],ok=await sendIntent(intent);
     if(generation!==volumeGeneration)return;
     if(!ok||cached[k]===old){if(volumeQueue[k]===job)delete volumeQueue[k];volumeMessage="Volume uncertain · reconcile and adjust again";volumeError=true;local("Volume batch stopped; no automatic retry",{channel:k,target:job.target});break}
     if(volumeQueue[k]!==job)break;
     if(cached[k]===job.target){delete volumeQueue[k];volumeMessage="Volume synchronized";break}
+    if(count===maxSteps-1){
+     delete volumeQueue[k];volumeMessage="Volume stopped · target not reached";volumeError=true;break;
+    }
     // Wait briefly between confirmed incremental steps; never send a blind burst.
     await new Promise(resolve=>setTimeout(resolve,120));
    }

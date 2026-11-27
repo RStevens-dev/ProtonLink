@@ -85,6 +85,38 @@ static bool press_button(const char *name, unsigned duration)
     return true;
 }
 
+static lv_obj_t *find_visible_slider(lv_obj_t *obj)
+{
+    if(lv_obj_has_flag(obj,LV_OBJ_FLAG_HIDDEN)) return NULL;
+    if(lv_obj_check_type(obj,&lv_slider_class)) return obj;
+    for(uint32_t i=0;i<lv_obj_get_child_count(obj);i++) {
+        lv_obj_t *found=find_visible_slider(lv_obj_get_child(obj,i));
+        if(found) return found;
+    }
+    return NULL;
+}
+
+static bool check_volume_drag(void)
+{
+    lv_obj_t *slider=find_visible_slider(lv_screen_active());
+    protonlink_status_t s;
+    if(!slider || !protonlink_snapshot(&s)) return false;
+    int original=s.master;
+    lv_area_t area;
+    lv_obj_get_coords(slider,&area);
+    int y=(area.y1+area.y2)/2, width=lv_area_get_width(&area);
+    touch(area.x1+width*original/100,y,true,80);
+    touch(area.x1+width*72/100,y,true,90);
+    touch(area.x1+width*72/100,y,false,250);
+    int target=lv_slider_get_value(slider);
+    if(target<=original || target%5 || !protonlink_snapshot(&s) || s.master!=original) return false;
+    advance(850);
+    if(!pl_busy() || !protonlink_snapshot(&s) || s.master<=original || s.master>=target ||
+       lv_slider_get_value(slider)!=target) return false;
+    advance(4000);
+    return !pl_busy() && protonlink_snapshot(&s) && s.master==target && lv_slider_get_value(slider)==target;
+}
+
 static bool check_menus(void)
 {
     protonlink_status_t s;
@@ -113,12 +145,12 @@ static bool check_menus(void)
 
     if(!press_button("BACK",100) || !press_button("MIXER",100) ||
        !press_button("AUDIO PRESETS",100) || !press_button("QUIET   20 / 25 / 15",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
-    advance(1200);
+    advance(11000);
     if(!protonlink_snapshot(&s) || s.master!=20 || s.effects!=25 || s.music!=15) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
     if(!press_button("TEMPORARY 50% AUDIO REDUCTION",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
-    advance(1200);
+    advance(4200);
     if(!press_button("RESTORE PREVIOUS AUDIO",100)) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
-    advance(1200);
+    advance(4200);
     if(!protonlink_snapshot(&s) || s.master!=20 || s.effects!=25 || s.music!=15) {fprintf(stderr,"Subsystem check failed at line %d\n",__LINE__); return false;}
     if(!press_button("BACK",100) || !press_button("REDUCED MOTION: OFF",100) ||
        !find_visible_button(lv_screen_active(),"REDUCED MOTION: ON") ||
@@ -283,6 +315,8 @@ static int run_smoke(void)
         }
     }
     puts("Pack START / VENT / STOP pointer regression passed");
+    if(!check_volume_drag()) { fprintf(stderr,"Drag-to-target volume regression failed\n"); return 1; }
+    puts("Drag-to-target volume stepped through telemetry to the selected level");
     if(!check_menus()) { fprintf(stderr,"Subsystem regression failed\n"); return 1; }
     if(!check_catalog_ui() || !render_faces()) {
         fprintf(stderr,"Catalog navigation or face rendering regression failed\n");
