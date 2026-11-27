@@ -28,7 +28,13 @@ static const char *marquee_names[]={"AMBER","GREEN","BLUE","RED"};
 static lv_obj_t *field_progress, *dot_progress, *pack_progress[3], *leds[3][20], *library_track;
 static lv_obj_t *dot_button, *monitor_dots, *monitor_progress, *library_rows[7], *library_names[7], *library_prev, *library_next, *transport_light;
 static lv_obj_t *pack_info, *music_page, *mixer, *diagnostics, *readiness, *settings, *audio_presets, *field_layout;
-static lv_obj_t *pack_summary, *music_summary, *diagnostic_summary, *readiness_summary, *menu_summary;
+static lv_obj_t *music_summary, *music_state, *menu_summary, *menu_indicator;
+static lv_obj_t *pack_values[4], *diagnostic_values[9], *readiness_values[5];
+
+enum {
+    MENU_BG=0x10191e, MENU_BAR=0x152229, MENU_CARD=0x1b2a31, MENU_EDGE=0x344950,
+    MENU_TEXT=0xe0ecec, MENU_MUTED=0x94adb2, MENU_ACTIVE=0x95dbb0, MENU_AMBER=0xe6b75e
+};
 static lv_obj_t *music_play, *music_pause, *preset_buttons[5], *reduction_label, *main_screen_label;
 static lv_obj_t *library_return, *library_filter, *library_favorite, *library_empty;
 static char track_readout[PL_TITLE_SIZE+24];
@@ -397,6 +403,7 @@ static void update_library(void)
             continue;
         }
         lv_obj_remove_flag(library_rows[i],LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_state(library_rows[i],LV_STATE_USER_1,id==library_current);
         char fallback[24];
         lv_label_set_text_fmt(library_names[i],"%s %02d    %s    %d%s",id==library_current?">":" ",
                               id-library_first+1,pl_catalog_title(id,library_first,fallback),id,pl_catalog_favorite(id)?"  *":"");
@@ -490,9 +497,67 @@ static lv_obj_t *make_dots(lv_obj_t *parent)
     }
     return b;
 }
+static void menu_surface(lv_obj_t *obj, uint32_t color, int radius, bool border)
+{
+    lv_obj_set_style_bg_color(obj,lv_color_hex(color),0);
+    lv_obj_set_style_bg_opa(obj,LV_OPA_COVER,0);
+    lv_obj_set_style_radius(obj,radius,0);
+    lv_obj_set_style_border_width(obj,border?1:0,0);
+    lv_obj_set_style_border_color(obj,lv_color_hex(MENU_EDGE),0);
+}
+
+static lv_obj_t *menu_panel(lv_obj_t *parent,int x,int y,int w,int h,uint32_t color,int radius,bool border)
+{
+    lv_obj_t *panel=lv_obj_create(parent);
+    lv_obj_remove_style_all(panel);
+    lv_obj_set_pos(panel,x,y);
+    lv_obj_set_size(panel,w,h);
+    lv_obj_remove_flag(panel,LV_OBJ_FLAG_CLICKABLE|LV_OBJ_FLAG_SCROLLABLE);
+    menu_surface(panel,color,radius,border);
+    return panel;
+}
+
+static lv_obj_t *menu_button(lv_obj_t *parent,const char *text,int width,int height,lv_obj_t **out)
+{
+    lv_obj_t *button=make_button(parent,text,width,height,out);
+    menu_surface(button,MENU_CARD,8,true);
+    lv_obj_set_style_text_color(button,lv_color_hex(MENU_TEXT),0);
+    lv_obj_set_style_text_font(button,&lv_font_montserrat_14,0);
+    lv_obj_set_style_bg_color(button,lv_color_hex(0x2a444d),LV_STATE_PRESSED);
+    lv_obj_set_style_border_color(button,lv_color_hex(0x73949a),LV_STATE_PRESSED);
+    return button;
+}
+
+static void header_button(lv_obj_t *button)
+{
+    menu_surface(button,MENU_BAR,6,true);
+    lv_obj_set_style_text_color(button,lv_color_hex(MENU_MUTED),0);
+    lv_obj_set_style_text_font(button,&lv_font_montserrat_12,0);
+}
+
+static lv_obj_t *menu_value(lv_obj_t *page,const char *name,int x,int y,int w,int h)
+{
+    lv_obj_t *card=menu_panel(page,x,y,w,h,MENU_CARD,8,true);
+    lv_obj_t *key=label_at(card,name,11,7,MENU_MUTED);
+    lv_obj_set_style_text_font(key,&lv_font_montserrat_12,0);
+    lv_obj_t *value=label_at(card,"",11,24,MENU_TEXT);
+    lv_obj_set_size(value,w-22,19);
+    lv_label_set_long_mode(value,LV_LABEL_LONG_MODE_DOTS);
+    return value;
+}
+
+static void menu_title(lv_obj_t *page,const char *title,int height)
+{
+    menu_panel(page,0,0,410,height,MENU_BAR,0,false);
+    menu_panel(page,0,height-1,410,1,MENU_EDGE,0,false);
+    lv_obj_t *heading=label_at(page,title,0,0,MENU_TEXT);
+    lv_obj_set_style_text_letter_space(heading,1,0);
+    lv_obj_align(heading,LV_ALIGN_TOP_MID,0,(height-16)/2);
+}
+
 static lv_obj_t *navigation(lv_obj_t *page, const char *text, int x, int y, int width, lv_obj_t *dest)
 {
-    lv_obj_t *button=make_button(page,text,width,45,NULL);
+    lv_obj_t *button=menu_button(page,text,width,45,NULL);
     lv_obj_set_pos(button,x,y);
     lv_obj_add_event_cb(button,nav_event,LV_EVENT_CLICKED,dest);
     return button;
@@ -506,11 +571,13 @@ static void lock_event(lv_event_t *e)
 
 static lv_obj_t *subsystem_page(lv_obj_t *root, const char *title, lv_obj_t *back)
 {
-    lv_obj_t *page=page_new(root,0x141a1b);
-    navigation(page,"BACK",15,10,78,back);
-    label_at(page,title,106,25,0xd2d6cd);
-    lv_obj_t *lock=make_button(page,"LOCK",72,45,NULL);
-    lv_obj_set_pos(lock,323,10);
+    lv_obj_t *page=page_new(root,MENU_BG);
+    menu_title(page,title,60);
+    lv_obj_t *back_button=navigation(page,"BACK",16,8,68,back);
+    header_button(back_button);
+    lv_obj_t *lock=menu_button(page,"LOCK",68,45,NULL);
+    lv_obj_set_pos(lock,326,8);
+    header_button(lock);
     lv_obj_add_event_cb(lock,lock_event,LV_EVENT_CLICKED,NULL);
     return page;
 }
@@ -523,30 +590,27 @@ static const char *ready_text(bool known, bool ready)
 static void update_subsystems(const protonlink_status_t *s, bool armed, bool busy)
 {
     lv_label_set_text(menu_summary,ui_online?(s->pack_on?"PACK ONLINE":"PACK STANDBY"):"TELEMETRY UNAVAILABLE");
-    if(ui_online) {
-        const char *lid=!s->lid_known?"Unknown":s->lid_fitted?"Attached":"Removed";
-        lv_label_set_text_fmt(pack_summary,"PACK   %s\n\nMOVIE ERA   %s\n\nSTREAM   %s\n\nSYSTEM MODE   %s",
-                              s->pack_on?"Powered":"Idle",s->theme,s->stream,s->mode);
-        lv_label_set_text_fmt(music_summary,"TRACK   %s\n\n%s",
-                              track_readout,
-                              !s->music_known?"UNKNOWN":s->paused?"PAUSED":s->playing?"PLAYING":"STOPPED");
-        lv_label_set_text_fmt(diagnostic_summary,
-                              "PACK   %s\nWAND   %s\nRIBBON   %s\nLID   %s\nWAND POWER   %s\nBARREL   %s\nCYCLOTRON   %s\nVENT STATE   %s\nFIRING   %s",
-                              s->pack_on?"Powered":"Idle",s->wand,s->cable,lid,s->wand_power,
-                              s->barrel,s->cyclotron,s->temperature,s->firing?"Firing":"Idle");
-    } else {
-        lv_label_set_text(pack_summary,"TELEMETRY UNAVAILABLE");
-        lv_label_set_text(music_summary,"TELEMETRY UNAVAILABLE");
-        lv_label_set_text(diagnostic_summary,"TELEMETRY UNAVAILABLE");
-    }
+    lv_obj_set_style_bg_color(menu_indicator,lv_color_hex(!ui_online?MENU_MUTED:s->pack_on?MENU_ACTIVE:MENU_AMBER),0);
+    const char *lid=!s->lid_known?"Unknown":s->lid_fitted?"Attached":"Removed";
+    const char *pack[]={s->pack_on?"Powered":"Idle",s->theme,s->stream,s->mode};
+    const char *diag[]={pack[0],s->wand,s->cable,lid,s->wand_power,s->barrel,
+                        s->cyclotron,s->temperature,s->firing?"Firing":"Idle"};
+    for(int i=0;i<4;i++) lv_label_set_text(pack_values[i],ui_online?pack[i]:"—");
+    for(int i=0;i<9;i++) lv_label_set_text(diagnostic_values[i],ui_online?diag[i]:"—");
+    lv_label_set_text(music_summary,ui_online?track_readout:"TELEMETRY UNAVAILABLE");
+    lv_label_set_text(music_state,!ui_online || !s->music_known?"TRANSPORT UNAVAILABLE":
+                      s->paused?"PAUSED":s->playing?"PLAYING":"STOPPED");
     bool known_cyclotron=!strcmp(s->cyclotron,"Normal") || !strcmp(s->cyclotron,"Active");
     bool ready=!s->firing && !s->ramping && !s->lockout && known_cyclotron && !strcmp(s->temperature,"Normal");
-    lv_label_set_text_fmt(readiness_summary,
-                         "EQUIPMENT LINK   %s\nTELEMETRY CURRENT   %s\nRIBBON CONNECTED   %s\nCYCLOTRON LID FITTED   %s\nPACK IDLE OR NORMAL   %s",
-                         ready_text(true,ui_online),ready_text(true,ui_online),
+    const char *checks[]={ready_text(true,ui_online),ready_text(true,ui_online),
                          ready_text(ui_online && strcmp(s->cable,"Unknown")!=0,!strcmp(s->cable,"Connected")),
                          ready_text(ui_online && s->lid_known,s->lid_fitted),
-                         ready_text(ui_online && (s->transition_known || s->legacy_superhero),ready));
+                         ready_text(ui_online && (s->transition_known || s->legacy_superhero),ready)};
+    for(int i=0;i<5;i++) {
+        lv_label_set_text(readiness_values[i],checks[i]);
+        lv_obj_set_style_text_color(readiness_values[i],lv_color_hex(!strcmp(checks[i],"READY")?MENU_ACTIVE:
+                                    !strcmp(checks[i],"CHECK")?MENU_AMBER:MENU_MUTED),0);
+    }
     lv_label_set_text(music_play,ui_online && s->playing?"STOP":"START");
     lv_label_set_text(music_pause,ui_online && s->paused?"RESUME":"PAUSE");
     for(int i=0;i<PL_OPT_COUNT;i++) {
@@ -732,7 +796,7 @@ static void layout_event(lv_event_t *e)
 static void subsystem_action(lv_obj_t *row, pl_action_t action, const char *text, int width, lv_obj_t **label)
 {
     bool hold=action==PL_VENT;
-    lv_obj_t *button=make_button(row,text,width,45,label);
+    lv_obj_t *button=menu_button(row,text,width,45,label);
     aux_buttons[action]=button;
     lv_obj_set_style_text_color(button,lv_color_hex(hold?switch_color[PL_VENT]:0x8bd89f),0);
     lv_obj_add_event_cb(button,hold?gesture_event:command,hold?LV_EVENT_ALL:LV_EVENT_CLICKED,(void *)(intptr_t)action);
@@ -751,7 +815,7 @@ static void option_event(lv_event_t *e)
 static void option_button(lv_obj_t *parent, pl_option_t option, int x, int y, int width)
 {
     protonlink_status_t empty={0};
-    lv_obj_t *button=option_buttons[option]=make_button(parent,pl_option_label(option,&empty),width,42,NULL);
+    lv_obj_t *button=option_buttons[option]=menu_button(parent,pl_option_label(option,&empty),width,42,NULL);
     lv_obj_set_pos(button,x,y);
     lv_obj_add_event_cb(button,option_event,LV_EVENT_CLICKED,(void *)(intptr_t)option);
 }
@@ -771,37 +835,50 @@ static void create_subsystems(lv_obj_t *root)
     era_page=subsystem_page(root,"MOVIE ERA",effects_page);
     stream_page=subsystem_page(root,"STREAM MODE",effects_page);
 
-    label_at(menu,"COMMAND",24,25,0xd2d6cd);
-    lv_obj_t *lock=make_button(menu,"LOCK",72,45,NULL);
-    lv_obj_set_pos(lock,323,10);
+    menu_title(menu,"COMMAND",60);
+    lv_obj_t *lock=menu_button(menu,"LOCK",68,45,NULL);
+    lv_obj_set_pos(lock,326,8);
+    header_button(lock);
     lv_obj_add_event_cb(lock,lock_event,LV_EVENT_CLICKED,NULL);
-    menu_summary=label_at(menu,"",25,80,0x8bd89f);
-    navigation(menu,"PACK",24,125,175,pack_info);
-    navigation(menu,"MUSIC",211,125,175,music_page);
-    navigation(menu,"MIXER",24,185,175,mixer);
-    navigation(menu,"STATUS",211,185,175,diagnostics);
-    navigation(menu,"SETUP",24,245,175,settings);
-    navigation(menu,"PKE MONITOR",211,245,175,monitor);
-    navigation(menu,"EFFECTS",24,305,175,effects_page);
-    navigation(menu,"CONTROL",24,438,362,quick);
+    lv_obj_t *status=menu_panel(menu,24,76,362,46,MENU_BAR,8,true);
+    menu_indicator=menu_panel(status,13,17,10,10,MENU_MUTED,LV_RADIUS_CIRCLE,false);
+    menu_summary=label_at(status,"",33,12,MENU_TEXT);
+    static const char *captions[]={"PACK","MUSIC","MIXER","STATUS","SETUP","PKE MONITOR","EFFECTS","CONTROL"};
+    lv_obj_t *destinations[]={pack_info,music_page,mixer,diagnostics,settings,monitor,effects_page,quick};
+    for(int i=0;i<8;i++) {
+        lv_obj_t *tile=navigation(menu,captions[i],24+i%2*184,140+i/2*80,178,destinations[i]);
+        lv_obj_set_height(tile,68);
+    }
 
-    pack_summary=label_at(pack_info,"",24,79,0xd2d6cd);
-    lv_obj_set_width(pack_summary,362);
+    static const char *pack_keys[]={"PACK","MOVIE ERA","STREAM","SYSTEM MODE"};
+    for(int i=0;i<4;i++) pack_values[i]=menu_value(pack_info,pack_keys[i],24+i%2*184,78+i/2*65,178,55);
     lv_obj_t *vent_row=line(pack_info,50);
     lv_obj_set_pos(vent_row,12,235);
     subsystem_action(vent_row,PL_VENT,"MANUAL VENT",362,NULL);
     navigation(pack_info,"STARTUP CHECK",24,296,362,readiness);
     navigation(pack_info,"DIAGNOSTICS",24,352,362,diagnostics);
     navigation(pack_info,"SETTINGS",24,408,362,settings);
-    readiness_summary=label_at(readiness,"",24,90,0xd2d6cd);
-    lv_obj_set_style_text_line_space(readiness_summary,18,0);
-    diagnostics_art=pl_face_create(diagnostics,62,120);
-    diagnostic_summary=label_at(diagnostics,"",24,194,0xd2d6cd);
-    lv_obj_set_style_text_line_space(diagnostic_summary,13,0);
+    static const char *check_keys[]={"EQUIPMENT LINK","TELEMETRY CURRENT","RIBBON CONNECTED",
+                                     "CYCLOTRON LID FITTED","PACK IDLE OR NORMAL"};
+    for(int i=0;i<5;i++) {
+        lv_obj_t *card=menu_panel(readiness,24,78+i*67,362,55,MENU_CARD,8,true);
+        label_at(card,check_keys[i],13,17,MENU_TEXT);
+        readiness_values[i]=label_at(card,"",0,0,MENU_MUTED);
+        lv_obj_align(readiness_values[i],LV_ALIGN_RIGHT_MID,-12,0);
+        lv_obj_set_style_text_font(readiness_values[i],&lv_font_montserrat_12,0);
+    }
+    diagnostics_art=pl_face_create(diagnostics,72,120);
+    static const char *diag_keys[]={"PACK","WAND","RIBBON","LID","WAND POWER","BARREL","CYCLOTRON","VENT STATE","FIRING"};
+    for(int i=0;i<9;i++) diagnostic_values[i]=menu_value(diagnostics,diag_keys[i],24+i%2*184,200+i/2*57,178,51);
 
-    music_summary=label_at(music_page,"",24,82,0x8bd89f);
+    lv_obj_t *now_playing=menu_panel(music_page,24,73,362,70,MENU_CARD,8,true);
+    music_state=label_at(now_playing,"",12,10,MENU_MUTED);
+    lv_obj_set_style_text_font(music_state,&lv_font_montserrat_12,0);
+    music_summary=label_at(now_playing,"",12,31,MENU_ACTIVE);
+    lv_obj_set_size(music_summary,335,28);
+    lv_label_set_long_mode(music_summary,LV_LABEL_LONG_MODE_DOTS);
+    lv_obj_set_style_text_font(music_summary,&lv_font_montserrat_24,0);
     music_art=pl_face_create(music_page,156,85);
-    lv_obj_set_width(music_summary,362);
     lv_obj_t *keys=line(music_page,58);
     lv_obj_set_pos(keys,12,250);
     subsystem_action(keys,PL_PREVIOUS,"|<",61,NULL);
@@ -825,18 +902,21 @@ static void create_subsystems(lv_obj_t *root)
 
     static const char *channels[]={"MASTER","EFFECTS","MUSIC"};
     for(int i=0;i<3;i++) {
-        int x=70+i*125;
+        int x=78+i*127;
+        menu_panel(mixer,x-54,75,108,338,MENU_CARD,8,true);
         lv_obj_t *name=label_at(mixer,channels[i],x-38,88,0xd2d6cd);
         lv_obj_set_width(name,76);
         lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);
         level_labels[i+3]=label_at(mixer,"--",x-25,124,channel_color[i]);
         lv_obj_set_width(level_labels[i+3],50);
         lv_obj_set_style_text_align(level_labels[i+3],LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_style_text_font(level_labels[i+3],&lv_font_montserrat_24,0);
         lv_obj_t *slider=levels[i+3]=lv_slider_create(mixer);
         lv_obj_remove_flag(slider,LV_OBJ_FLAG_GESTURE_BUBBLE);
         lv_obj_set_size(slider,26,220);
         lv_obj_set_pos(slider,x-13,169);
         lv_slider_set_range(slider,0,100);
+        lv_obj_set_style_bg_color(slider,lv_color_hex(MENU_BG),LV_PART_MAIN);
         lv_obj_set_style_bg_color(slider,lv_color_hex(channel_color[i]),LV_PART_INDICATOR);
         lv_obj_set_style_bg_color(slider,lv_color_hex(0x8b9897),LV_PART_KNOB);
         add_disabled_style(slider,LV_PART_MAIN);
@@ -851,7 +931,7 @@ static void create_subsystems(lv_obj_t *root)
     const char *preferences[]={command_home?"MAIN SCREEN: FIELD LOCK":"MAIN SCREEN: INDUSTRIAL CONTROL",
                                reduced_motion?"REDUCED MOTION: ON":"REDUCED MOTION: OFF"};
     for(int i=0;i<2;i++) {
-        lv_obj_t *button=make_button(settings,preferences[i],362,45,NULL);
+        lv_obj_t *button=menu_button(settings,preferences[i],362,45,NULL);
         lv_obj_set_pos(button,24,143+58*i);
         lv_obj_add_event_cb(button,preference_event,LV_EVENT_CLICKED,(void *)(intptr_t)i);
         if(i==0) main_screen_label=lv_obj_get_child(button,0);
@@ -862,22 +942,22 @@ static void create_subsystems(lv_obj_t *root)
     char face_title[64], color_title[42];
     snprintf(face_title,sizeof(face_title),"FACE: %s",pl_face_name(selected_face));
     snprintf(color_title,sizeof(color_title),"MARQUEE COLOR: %s",marquee_names[marquee_palette]);
-    lv_obj_t *face=make_button(display_page,face_title,362,45,NULL);
+    lv_obj_t *face=menu_button(display_page,face_title,362,45,NULL);
     lv_obj_set_pos(face,24,85);
     lv_obj_add_event_cb(face,pick_face,LV_EVENT_CLICKED,NULL);
     const char *display_options[]={dynamic_faces?"DYNAMIC FACES: ON":"DYNAMIC FACES: OFF",
                                    contact_labels?"PKE CONTACT LABELS: ON":"PKE CONTACT LABELS: OFF",
                                    color_title,horizontal_gestures?"SWIPE NAVIGATION: ON":"SWIPE NAVIGATION: OFF"};
     for(int i=0;i<4;i++) {
-        lv_obj_t *button=make_button(display_page,display_options[i],362,45,NULL);
+        lv_obj_t *button=menu_button(display_page,display_options[i],362,45,NULL);
         lv_obj_set_pos(button,24,144+59*i);
         lv_obj_add_event_cb(button,display_option,LV_EVENT_CLICKED,(void *)(intptr_t)i);
     }
     for(int row=0;row<4;row++) {
         int y=85+59*row;
         module_labels[row]=label_at(field_layout,"",24,y+13,0xd2d6cd);
-        module_move[row]=make_button(field_layout,"MOVE UP",102,43,NULL);
-        module_toggle[row]=make_button(field_layout,"HIDE",94,43,NULL);
+        module_move[row]=menu_button(field_layout,"MOVE UP",102,43,NULL);
+        module_toggle[row]=menu_button(field_layout,"HIDE",94,43,NULL);
         lv_obj_set_pos(module_move[row],176,y);
         lv_obj_set_pos(module_toggle[row],292,y);
         lv_obj_add_event_cb(module_move[row],layout_event,LV_EVENT_CLICKED,(void *)(intptr_t)(2*row));
@@ -888,7 +968,7 @@ static void create_subsystems(lv_obj_t *root)
     const char *labels[]={"CONVENTION   75 / 80 / 70","INDOOR   45 / 50 / 40","PARADE   85 / 90 / 75",
                           "QUIET   20 / 25 / 15","TEMPORARY 50% AUDIO REDUCTION"};
     for(int i=0;i<5;i++) {
-        preset_buttons[i]=make_button(audio_presets,labels[i],362,46,i==4?&reduction_label:NULL);
+        preset_buttons[i]=menu_button(audio_presets,labels[i],362,46,i==4?&reduction_label:NULL);
         lv_obj_set_pos(preset_buttons[i],24,85+59*i);
         lv_obj_add_event_cb(preset_buttons[i],preset_event,LV_EVENT_CLICKED,(void *)(intptr_t)i);
     }
@@ -1080,7 +1160,7 @@ static void switch_profile(lv_event_t *e)
 static lv_obj_t *catalog_button(lv_obj_t *page, const char *text, int x, int y, int width,
                                 lv_event_cb_t action, intptr_t argument)
 {
-    lv_obj_t *button=make_button(page,text,width,37,NULL);
+    lv_obj_t *button=menu_button(page,text,width,37,NULL);
     lv_obj_set_pos(button,x,y);
     lv_obj_add_event_cb(button,action,LV_EVENT_CLICKED,(void *)argument);
     return button;
@@ -1091,7 +1171,8 @@ static void create_catalog_pages(lv_obj_t *root)
     catalog_tools=subsystem_page(root,"TRACK TOOLS",library);
     playlist_page=subsystem_page(root,"PLAYLISTS",catalog_tools);
     profile_page=subsystem_page(root,"PACK PROFILES",catalog_tools);
-    catalog_editor=page_new(root,0x141a1b);
+    catalog_editor=page_new(root,MENU_BG);
+    menu_panel(catalog_editor,0,0,410,51,MENU_BAR,0,false);
     navigation(catalog_tools,"PLAYLISTS",24,234,362,playlist_page);
     navigation(catalog_tools,"PACK PROFILES",24,290,362,profile_page);
     catalog_button(catalog_tools,"EDIT CURRENT TRACK TITLE",24,79,362,editor_button,EDIT_TITLE);
@@ -1115,11 +1196,15 @@ static void create_catalog_pages(lv_obj_t *root)
     edit_value=lv_textarea_create(catalog_editor);
     lv_obj_set_pos(edit_value,24,63);
     lv_obj_set_size(edit_value,362,101);
+    menu_surface(edit_value,MENU_CARD,8,true);
+    lv_obj_set_style_text_color(edit_value,lv_color_hex(MENU_TEXT),0);
     lv_obj_add_event_cb(edit_value,editor_focus,LV_EVENT_FOCUSED,NULL);
     lv_obj_add_event_cb(edit_value,editor_focus,LV_EVENT_CLICKED,NULL);
     edit_ids=lv_textarea_create(catalog_editor);
     lv_obj_set_pos(edit_ids,24,121);
     lv_obj_set_size(edit_ids,362,43);
+    menu_surface(edit_ids,MENU_CARD,8,true);
+    lv_obj_set_style_text_color(edit_ids,lv_color_hex(MENU_TEXT),0);
     lv_textarea_set_one_line(edit_ids,true);
     lv_textarea_set_max_length(edit_ids,PL_PLAYLIST_TRACKS*6);
     lv_obj_add_event_cb(edit_ids,editor_focus,LV_EVENT_FOCUSED,NULL);
@@ -1128,6 +1213,10 @@ static void create_catalog_pages(lv_obj_t *root)
     catalog_button(catalog_editor,"APPLY",212,186,174,editor_action,1);
     edit_keyboard=lv_keyboard_create(catalog_editor);
     lv_obj_set_size(edit_keyboard,410,260);
+    menu_surface(edit_keyboard,MENU_BAR,0,false);
+    lv_obj_set_style_bg_color(edit_keyboard,lv_color_hex(MENU_CARD),LV_PART_ITEMS);
+    lv_obj_set_style_border_color(edit_keyboard,lv_color_hex(MENU_EDGE),LV_PART_ITEMS);
+    lv_obj_set_style_text_color(edit_keyboard,lv_color_hex(MENU_TEXT),LV_PART_ITEMS);
     lv_obj_align(edit_keyboard,LV_ALIGN_BOTTOM_MID,0,0);
     lv_obj_add_event_cb(edit_keyboard,editor_action,LV_EVENT_READY,(void *)(intptr_t)1);
     lv_obj_add_event_cb(edit_keyboard,editor_action,LV_EVENT_CANCEL,NULL);
@@ -1148,7 +1237,7 @@ void protonlink_ui_create(void)
     lv_style_set_color_filter_opa(&disabled_style,LV_OPA_COVER);
     lv_style_set_recolor_opa(&disabled_style,LV_OPA_TRANSP);
     quick=page_new(root,0x141a1b); field=page_new(root,0x020805); monitor=page_new(root,0x020805);
-    menu=page_new(root,0x141a1b); library=page_new(root,0x141a1b);
+    menu=page_new(root,MENU_BG); library=page_new(root,MENU_BG);
     lv_obj_t *screen=quick;
     lv_obj_remove_flag(screen,LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(screen,lv_color_hex(0x141a1b),0);
@@ -1315,7 +1404,11 @@ void protonlink_ui_create(void)
     field_face=pl_face_create(field,56,386);
     monitor_face=pl_face_create(monitor,56,386);
     label_at(field,"LINK / PL-01",16,15,0x82b693);
-    lock_label=label_at(field,"HOLD TO UNLOCK",65,461,0xe6b75e);
+    lock_label=label_at(field,"HOLD TO UNLOCK",0,0,MENU_AMBER);
+    lv_obj_set_width(lock_label,370);
+    lv_obj_set_style_text_align(lock_label,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_set_style_text_letter_space(lock_label,1,0);
+    lv_obj_align(lock_label,LV_ALIGN_BOTTOM_MID,0,-22);
     field_progress=progress_at(field,370,-8,0x85e7aa);
     lv_obj_add_flag(field,LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(field,gesture_event,LV_EVENT_ALL,(void *)(intptr_t)G_FIELD);
@@ -1325,26 +1418,30 @@ void protonlink_ui_create(void)
     lv_obj_add_event_cb(monitor_dots,gesture_event,LV_EVENT_ALL,(void *)(intptr_t)G_MONITOR);
     label_at(monitor,"PKE MONITOR / TAP LIGHTS TO RETURN",35,465,0xe6b75e);
     create_subsystems(root);
-    label_at(library,"AUX TRACK DATABASE",25,24,0xd2d6cd);
-    library_return=make_button(library,"RETURN TO FIELD CONTROL",350,39,NULL);
+    menu_title(library,"AUX TRACK DATABASE",41);
+    library_return=menu_button(library,"RETURN TO FIELD CONTROL",350,39,NULL);
     lv_obj_set_pos(library_return,30,49);
     lv_obj_add_event_cb(library_return,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)RETURN_FROM_LIBRARY);
     library_track=label_at(library,"TRACK UNAVAILABLE",30,184,0x8bd89f);
     lv_obj_set_width(library_track,350); lv_label_set_long_mode(library_track,LV_LABEL_LONG_DOT);
-    library_filter=make_button(library,"ALL TRACKS",170,34,NULL);
+    library_filter=menu_button(library,"ALL TRACKS",170,34,NULL);
     lv_obj_set_pos(library_filter,30,96);
     lv_obj_add_event_cb(library_filter,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)FILTER_TRACKS);
-    library_favorite=make_button(library,"STAR CURRENT",170,34,NULL);
+    library_favorite=menu_button(library,"STAR CURRENT",170,34,NULL);
     lv_obj_set_pos(library_favorite,210,96);
     lv_obj_add_event_cb(library_favorite,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)STAR_CURRENT);
     for(int i=0;i<7;i++) {
-        library_rows[i]=make_button(library,"",350,32,&library_names[i]); lv_obj_set_pos(library_rows[i],30,208+i*34);
+        library_rows[i]=menu_button(library,"",350,32,&library_names[i]); lv_obj_set_pos(library_rows[i],30,208+i*34);
+        lv_obj_set_style_bg_color(library_rows[i],lv_color_hex(0x27443c),LV_STATE_USER_1);
+        lv_obj_set_style_border_color(library_rows[i],lv_color_hex(0x537c68),LV_STATE_USER_1);
         lv_obj_set_width(library_names[i],318); lv_label_set_long_mode(library_names[i],LV_LABEL_LONG_DOT);
         lv_obj_add_event_cb(library_rows[i],library_event,LV_EVENT_CLICKED,(void *)(intptr_t)i);
     }
-    library_empty=label_at(library,"NO MATCHING TRACKS",105,246,0x83999f);
-    library_prev=make_button(library,"PREVIOUS PAGE",170,34,NULL); lv_obj_set_pos(library_prev,30,457);
-    library_next=make_button(library,"NEXT PAGE",170,34,NULL); lv_obj_set_pos(library_next,210,457);
+    library_empty=label_at(library,"NO MATCHING TRACKS",0,246,MENU_MUTED);
+    lv_obj_set_width(library_empty,410);
+    lv_obj_set_style_text_align(library_empty,LV_TEXT_ALIGN_CENTER,0);
+    library_prev=menu_button(library,"PREVIOUS PAGE",170,34,NULL); lv_obj_set_pos(library_prev,30,457);
+    library_next=menu_button(library,"NEXT PAGE",170,34,NULL); lv_obj_set_pos(library_next,210,457);
     lv_obj_add_event_cb(library_prev,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)PREVIOUS_PAGE);
     lv_obj_add_event_cb(library_next,library_event,LV_EVENT_CLICKED,(void *)(intptr_t)NEXT_PAGE);
     create_catalog_pages(root);

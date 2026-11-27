@@ -50,6 +50,26 @@ static lv_obj_t *find_visible_button(lv_obj_t *obj,const char *name)
     }
     return NULL;
 }
+static lv_obj_t *find_visible_label(lv_obj_t *obj,const char *text)
+{
+    if(lv_obj_has_flag(obj,LV_OBJ_FLAG_HIDDEN)) return NULL;
+    if(lv_obj_check_type(obj,&lv_label_class) && !strcmp(lv_label_get_text(obj),text)) return obj;
+    for(uint32_t i=0;i<lv_obj_get_child_count(obj);i++) {
+        lv_obj_t *result=find_visible_label(lv_obj_get_child(obj,i),text);
+        if(result) return result;
+    }
+    return NULL;
+}
+
+static bool centered_prompt(const char *text)
+{
+    lv_obj_t *label=find_visible_label(lv_screen_active(),text);
+    if(!label || lv_obj_get_style_text_align(label,LV_PART_MAIN)!=LV_TEXT_ALIGN_CENTER) return false;
+    lv_area_t bounds;
+    lv_obj_get_coords(label,&bounds);
+    return bounds.x1+bounds.x2==409;
+}
+
 static bool press_button(const char *name, unsigned duration)
 {
     lv_obj_t *button=find_visible_button(lv_screen_active(),name);
@@ -228,7 +248,15 @@ static int run_smoke(void)
     lv_indev_set_display(pointer,display);
     advance(100);
     if(pl_is_unlocked()) return 1;
+    if(!centered_prompt("HOLD TO UNLOCK")) {
+        fprintf(stderr,"Field Lock prompt is off-center\n");
+        return 1;
+    }
     touch(205,250,true,2200); touch(205,250,false,100);
+    if(!centered_prompt("RELEASE, THEN SWIPE LEFT")) {
+        fprintf(stderr,"Field Lock swipe prompt is off-center\n");
+        return 1;
+    }
     touch(300,250,true,100); touch(160,250,true,100); touch(160,250,false,300);
     if(!pl_is_unlocked()) { fprintf(stderr,"Field Lock hold/swipe failed\n"); return 1; }
     /* Quick Control is visible. Resolve the actual pack button positions by
